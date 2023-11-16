@@ -1,7 +1,4 @@
-﻿using System.Linq;
-using static OpExport.LibOP;
-
-namespace OpExport.Export
+﻿namespace OpExport.Export
 {
     public abstract class AbstractExport : IExport
     {
@@ -37,21 +34,23 @@ namespace OpExport.Export
                 var method = libOP.MethodByFunction(func.name);
                 Method showFunc = (Method)method.Clone();
                 Method dllFunc = (Method)func.Clone();
-                if (showFunc.returnType == "void" && showFunc.args.Count > 0)
+
+                var findArg = showFunc.args.Find(item => item.refType == Reference.Ret);
+                if (findArg != null)
                 {
-                    //将引用传参从参数中调整到返回值
-                    var lastArg = showFunc.args.Last();
-                    if (lastArg.type == "long*")
+                    if (findArg.type == "long*")
                     {
                         showFunc.returnType = "long";
-                        if (showFunc.args.Count > 0)
-                            showFunc.args.RemoveAt(showFunc.args.Count - 1);
+                        if (!string.IsNullOrEmpty(findArg.annotation))
+                            showFunc.returnAnnotation = findArg.annotation;
+                        showFunc.args.Remove(findArg);
                     }
-                    if (lastArg.type == "std::wstring&")
+                    if (findArg.type == "std::wstring&")
                     {
                         showFunc.returnType = "std::wstring";
-                        if (showFunc.args.Count > 0)
-                            showFunc.args.RemoveAt(showFunc.args.Count - 1);
+                        if (!string.IsNullOrEmpty(findArg.annotation))
+                            showFunc.returnAnnotation = findArg.annotation;
+                        showFunc.args.Remove(findArg);
                     }
                 }
                 GenerateMethod(showFunc, dllFunc);

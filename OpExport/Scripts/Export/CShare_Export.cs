@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.IO;
-using static OpExport.LibOP;
 
 namespace OpExport.Export
 {
@@ -79,7 +78,7 @@ namespace OpExport.Export
             {
                 List<string> names = func.args.ConvertAll(item => item.name);
                 cw.Writeln(string.Format("[DllImport(DLL_NAME, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]", func.name));
-                cw.Writeln(string.Format("private static extern {0} {1}({2});", SwtichType(func.returnType), func.name, string.Join(", ", func.args.ConvertAll(item => string.Format("{0} {1}", SwtichType(item.type), item.name)))));
+                cw.Writeln(string.Format("private static extern {0} {1}({2});", SwtichType(func.returnType), func.name, string.Join(", ", func.args.ConvertAll(item => string.Format("{0} {1}", SwtichType(item), item.name)))));
                 cw.Writeln();
             }
             cw.Writeln("#endregion");
@@ -90,13 +89,15 @@ namespace OpExport.Export
         protected override void GenerateMethod(Method showFunc, Method dllFunc)
         {
             GenerateAnnotation(cw, showFunc);
-            showFunc.args.ForEach(item => item.type = SwtichType(item.type));
+            showFunc.args.ForEach(item => item.type = SwtichType(item));
             string showArgs = string.Join(", ", showFunc.args.ConvertAll(item => string.Format("{0} {1}", item.type, item.name)));
             List<string> callNames = dllFunc.args.ConvertAll(item =>
             {
                 var findIndex = showFunc.args.FindIndex(arg => arg.name == item.name);
                 if (findIndex < 0) return item.name;
-                if (showFunc.args[findIndex].type.StartsWith("ref ")) return "ref " + item.name;
+                var tempType = showFunc.args[findIndex].type;
+                if (tempType.StartsWith("ref ")) return "ref " + item.name;
+                if (tempType.StartsWith("out ")) return "out " + item.name;
                 else return item.name;
             });
             if (showFunc.returnType == "std::wstring")
@@ -160,6 +161,28 @@ namespace OpExport.Export
                 case "void*": return "IntPtr";
                 case "std::wstring": return "string";
                 default: return type;
+            }
+        }
+        private string SwtichType(Arg arg)
+        {
+            string result = string.Empty;
+            if (arg.refType == Reference.Out)
+                result += "out ";
+            if (arg.refType == Reference.InOut)
+                result += "ref ";
+            switch (arg.type)
+            {
+                case "wchar_t*": return "IntPtr";
+                case "libop*": return "IntPtr";
+                case "const wchar_t*": return "string";
+                case "int*": return result + "int";
+                case "long": return "int";
+                case "long*": return result + "int";
+                case "char*": return result + "string";
+                case "size_t*": return result + "IntPtr";
+                case "void*": return "IntPtr";
+                case "std::wstring": return "string";
+                default: return arg.type;
             }
         }
     }

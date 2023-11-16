@@ -26,4 +26,4 @@ OPExport是为生成OP在特定语言下的桥接(胶水)代码的工具，不�
 2. 在```Export```文件夹创建```GO_Export.cs```文件及其类定义，需要继承自```AbstractExport```
 3. 在```GO_Export```类上方添加特性```[Language(LanguageFlags.Go)]```
 4. 参考其他已定义好的Export文件及GO语言特性完成编写
-5. 使用命令"```OpExport.exe {Path}/libop.h -lang GO -doc true```"后在exe同级目录查看生成文件
+5. 使用命令"```OpExport.exe {OPProject} -lang GO -doc true```"后在exe同级目录查看生成文件

@@ -1,8 +1,7 @@
 {
   "profiles": {
     "OpExport": {
-      "commandName": "Project",
-      "commandLineArgs": "I:\\Unity\\op\\libop/libop.h"
+      "commandName": "Project"
     }
   }
 }

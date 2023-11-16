@@ -135,7 +135,7 @@ namespace OpDocument
                     functionDefine = contextText.Substring(contextText.IndexOf(href));
 
                 index = 0;
-                annotation.funcName = SubBlockString(functionDefine, "\">", "<svg class=", ref index); index = 0;
+                annotation.funcName = SubBlockString(functionDefine, "</a>", "</h3>", ref index); index = 0;
                 annotation.funcAnnotation = SubBlockString(functionDefine, "<p>", "</p>", ref index); index = 0;
                 annotation.example = string.Empty;
                 annotation.returnAnnotation = string.Empty;

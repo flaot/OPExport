@@ -14,19 +14,28 @@ namespace OpExport
             Options option = Options.Inst;
             if (option == null) return;
 
-            System.Console.WriteLine("OP file(.h):" + option.File);
+            System.Console.WriteLine("OP Project:" + option.Project);
             Console.WriteLine("Export Languages:" + option.Language);
-
-            if (!File.Exists(option.File))
+            if (!Directory.Exists(option.Project))
             {
-                Console.WriteLine("[Error] no found op .h file:" + option.File);
+                Console.WriteLine("[Error] no found OP Project:" + option.Project);
+                return;
+            }
+            if (!File.Exists(option.LibOPFile))
+            {
+                Console.WriteLine("[Error] no found libop.h file:" + option.LibOPFile);
+                return;
+            }
+            if (!File.Exists(option.IdlOPFile))
+            {
+                Console.WriteLine("[Error] no found op.idl file:" + option.IdlOPFile);
                 return;
             }
 
-            LibOP libOP = LibOP.Create(option.File);
+            LibOP libOP = LibOP.Create(option.LibOPFile, option.IdlOPFile);
             if (libOP.functions.Count < 1)
             {
-                Console.WriteLine("[Error] file not is op head file:" + option.File);
+                Console.WriteLine("[Error] not is op project:" + option.Project);
                 return;
             }
 
