@@ -48,10 +48,7 @@ namespace OpExport
         public object Clone() => MemberwiseClone();
         public override string ToString()
         {
-            if (refType != Reference.None)
-                return string.Format("[{0}] {1} {2}", refType, type, name);
-            else
-                return string.Format("{0} {1}", type, name);
+            return string.Format("{0} {1}", type, name);
         }
     }
     public enum Reference
