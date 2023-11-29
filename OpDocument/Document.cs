@@ -145,6 +145,11 @@ namespace OpDocument
                 {
                     index = 0;
                     annotation.returnAnnotation = SubBlockString(functionDefine, "</code></p>\n<p>", "</p>", ref index);
+                    if (index < 0)
+                    {
+                        index = 0;
+                        annotation.returnAnnotation = SubBlockString(functionDefine, "</code></p>\n<ul>", "</ul>", ref index);
+                    }
                     foreach (var item in new string[] { "<ul>", "</ul>", "<li>", "</li>" })
                         annotation.returnAnnotation = annotation.returnAnnotation.Replace(item, string.Empty);
                     annotation.returnAnnotation = annotation.returnAnnotation.Trim();
