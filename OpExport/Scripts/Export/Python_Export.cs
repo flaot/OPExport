@@ -55,6 +55,7 @@ namespace OpExport.Export
         }
         protected override void GenerateMethod(Method showFunc, Method dllFunc)
         {
+            Method tempDllFunc = (Method)dllFunc.Clone();
             List<Arg> args = showFunc.args.ConvertAll(item => (Arg)item.Clone());
             List<Arg> showArgs = new List<Arg>(dllFunc.args.Count);//封装调用的参数
             List<Arg> useArgs = new List<Arg>(dllFunc.args.Count); //调用DLL的参数
@@ -115,7 +116,7 @@ namespace OpExport.Export
                 cw.Writeln(call);
                 cw.StartBlock();
                 GenerateAnnotation(cw, showFunc);
-                GenerateTypeDesc(cw, dllFunc);
+                GenerateTypeDesc(cw, tempDllFunc);
                 for (int i = 0; i < names.Count; i++)
                 {
                     string refName = refArgs[i];
@@ -141,7 +142,7 @@ namespace OpExport.Export
                 cw.Writeln(call);
                 cw.StartBlock();
                 GenerateAnnotation(cw, showFunc);
-                GenerateTypeDesc(cw, dllFunc);
+                GenerateTypeDesc(cw, tempDllFunc);
                 for (int i = 0; i < names.Count; i++)
                 {
                     string refName = refArgs[i];
@@ -169,7 +170,7 @@ namespace OpExport.Export
                 cw.Writeln("{0} -- {1}", showFunc.args[i].name, showFunc.args[i].annotation.Replace("\n", " "));
 
             if (!string.IsNullOrEmpty(showFunc.returnAnnotation))
-                cw.Writeln("{0}", showFunc.returnAnnotation);
+                cw.Writeln("{0}", showFunc.returnAnnotation.Replace("\n", " "));
 
             if (!string.IsNullOrEmpty(showFunc.example))
                 cw.Writeln("{0}", showFunc.example);
@@ -204,12 +205,17 @@ namespace OpExport.Export
         {
             switch (type)
             {
-                case "libop*":
+                case "libop*": return "c_void_p";
                 case "void*": return "c_void_p";
                 case "void": return "c_void";
-                case "int": return "c_int";
+                case "int":  return "c_int";
                 case "wchar_t*": return "c_wchar_p";
+                case "const wchar_t*": return "c_wchar_p";
                 case "long": return "c_long";
+                case "double": return "c_double";
+                case "int*": return "POINTER(c_int)";
+                case "long*": return "POINTER(c_long)";
+                case "size_t*": return "POINTER(c_size_t)";
                 default: return type;
             }
         }
