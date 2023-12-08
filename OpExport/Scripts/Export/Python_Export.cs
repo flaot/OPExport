@@ -33,12 +33,14 @@ namespace OpExport.Export
             cw.Writeln($"self.{LibOP.PStr} = c_wchar_p(0)");
             cw.Writeln($"self.{LibOP.PStrSize} = c_int()");
             cw.Writeln("self.dll = cdll.LoadLibrary(dll_file)");
+            cw.Writeln($"self.dll.{LibOP.CreateFunc}.restype = c_void_p");
             cw.Writeln($"self.{LibOP.ObjName} = self.dll.{LibOP.CreateFunc}()");
             cw.EndBlock();
 
             //__del__
             cw.Writeln("def __del__(self):");
             cw.StartBlock();
+            cw.Writeln($"self.dll.{LibOP.ReleaseFunc}.argtypes = [c_void_p]");
             cw.Writeln($"self.dll.{LibOP.ReleaseFunc}(self.{LibOP.ObjName})");
             cw.Writeln($"self.{LibOP.ObjName} = None");
             cw.Writeln("self.dll = None");
@@ -113,6 +115,7 @@ namespace OpExport.Export
                 cw.Writeln(call);
                 cw.StartBlock();
                 GenerateAnnotation(cw, showFunc);
+                GenerateTypeDesc(cw, dllFunc);
                 for (int i = 0; i < names.Count; i++)
                 {
                     string refName = refArgs[i];
@@ -138,6 +141,7 @@ namespace OpExport.Export
                 cw.Writeln(call);
                 cw.StartBlock();
                 GenerateAnnotation(cw, showFunc);
+                GenerateTypeDesc(cw, dllFunc);
                 for (int i = 0; i < names.Count; i++)
                 {
                     string refName = refArgs[i];
@@ -155,20 +159,20 @@ namespace OpExport.Export
                 cw.EndBlock();
             }
         }
-        private void GenerateAnnotation(CodeWriter cw, Method func)
+        private void GenerateAnnotation(CodeWriter cw, Method showFunc)
         {
             cw.Writeln("\"\"\"");
-            if (func.annotation.Length > 0)
-                cw.Writeln(string.Format("{0}", func.annotation.Replace("\n", " ")));
+            if (showFunc.annotation.Length > 0)
+                cw.Writeln(string.Format("{0}", showFunc.annotation.Replace("\n", " ")));
             cw.Writeln();
-            for (int i = 0; i < func.args.Count; i++)
-                cw.Writeln("{0} -- {1}", func.args[i].name, func.args[i].annotation.Replace("\n", " "));
+            for (int i = 0; i < showFunc.args.Count; i++)
+                cw.Writeln("{0} -- {1}", showFunc.args[i].name, showFunc.args[i].annotation.Replace("\n", " "));
 
-            if (!string.IsNullOrEmpty(func.returnAnnotation))
-                cw.Writeln("{0}", func.returnAnnotation);
+            if (!string.IsNullOrEmpty(showFunc.returnAnnotation))
+                cw.Writeln("{0}", showFunc.returnAnnotation);
 
-            if (!string.IsNullOrEmpty(func.example))
-                cw.Writeln("{0}", func.example);
+            if (!string.IsNullOrEmpty(showFunc.example))
+                cw.Writeln("{0}", showFunc.example);
 
             cw.Writeln("\"\"\"");
         }
@@ -185,6 +189,27 @@ namespace OpExport.Export
                 case "size_t*": return "int|c_size_t";
                 case "void*": return "c_void_p";
                 case "std::wstring": return "str";
+                default: return type;
+            }
+        }
+        private void GenerateTypeDesc(CodeWriter cw, Method dllFunc)
+        {
+            var types = dllFunc.args.ConvertAll(item => SwitchTypeDesc(item.type));
+            if(types.Count > 0)
+                cw.Writeln($"self.dll.{dllFunc.name}.argtypes = [{string.Join(", ", types)}]");
+            if(dllFunc.returnType != "void")
+                cw.Writeln($"self.dll.{dllFunc.name}.restype = {SwitchTypeDesc(dllFunc.returnType)}");
+        }
+        private string SwitchTypeDesc(string type)
+        {
+            switch (type)
+            {
+                case "libop*":
+                case "void*": return "c_void_p";
+                case "void": return "c_void";
+                case "int": return "c_int";
+                case "wchar_t*": return "c_wchar_p";
+                case "long": return "c_long";
                 default: return type;
             }
         }
