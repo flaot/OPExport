@@ -19,6 +19,8 @@ namespace OpExport
         Python = 1 << 5,
         /// <summary> "Java"的桥接文件 </summary>
         Java = 1 << 6,
+        /// <summary> "VB.Net"的桥接文件 </summary>
+        VB_NET = 1 << 7,
         /// <summary> 生成所有桥接文件 </summary>
         All = 0x0FFFFFFF,
     }
