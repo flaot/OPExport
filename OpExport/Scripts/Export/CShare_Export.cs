@@ -78,7 +78,8 @@ namespace OpExport.Export
             {
                 List<string> names = func.args.ConvertAll(item => item.name);
                 cw.Writeln(string.Format("[DllImport(DLL_NAME, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]", func.name));
-                cw.Writeln(string.Format("private static extern {0} {1}({2});", SwtichType(func.returnType), func.name, string.Join(", ", func.args.ConvertAll(item => string.Format("{0} {1}", SwtichType(item), item.name)))));
+                cw.Writeln(string.Format("private static extern {0} {1}({2});", mapType.OutRtn(func.returnType), func.name, 
+                    string.Join(", ", func.args.ConvertAll(arg => string.Format("{0} {1}", mapType.OutArg(arg.type, arg.refType), arg.name)))));
                 cw.Writeln();
             }
             cw.Writeln("#endregion");
@@ -89,8 +90,8 @@ namespace OpExport.Export
         protected override void GenerateMethod(Method showFunc, Method dllFunc)
         {
             GenerateAnnotation(cw, showFunc);
-            showFunc.args.ForEach(item => item.type = SwtichType(item));
-            string showArgs = string.Join(", ", showFunc.args.ConvertAll(item => string.Format("{0} {1}", item.type, item.name)));
+            showFunc.args.ForEach(item => item.type = mapType.OutArg(item.type, item.refType));
+            string showArgs = string.Join(", ", showFunc.args.ConvertAll(arg => string.Format("{0} {1}", arg.type, arg.name)));
             List<string> callNames = dllFunc.args.ConvertAll(item =>
             {
                 var findIndex = showFunc.args.FindIndex(arg => arg.name == item.name);
@@ -102,7 +103,7 @@ namespace OpExport.Export
             });
             if (showFunc.returnType == "std::wstring")
             {
-                string functionName = string.Format("public {0} {1}({2})", SwtichType(showFunc.returnType), showFunc.name, showArgs);
+                string functionName = string.Format("public {0} {1}({2})", mapType.OutRtn(showFunc.returnType), showFunc.name, showArgs);
                 cw.Writeln(functionName);
                 cw.StartBlock();
                 string call = string.Format("{0}({1});", dllFunc.name, string.Join(", ", callNames));
@@ -119,11 +120,10 @@ namespace OpExport.Export
             }
             else
             {
-                string call = string.Format("public {0} {1}({2}) => {3}({4});", SwtichType(showFunc.returnType), showFunc.name, showArgs, dllFunc.name, string.Join(", ", callNames));
+                string call = string.Format("public {0} {1}({2}) => {3}({4});", mapType.OutRtn(showFunc.returnType), showFunc.name, showArgs, dllFunc.name, string.Join(", ", callNames));
                 cw.Writeln(call);
             }
         }
-
         private void GenerateAnnotation(CodeWriter cw, Method func)
         {
             cw.Writeln("/// <summary>");
@@ -146,44 +146,38 @@ namespace OpExport.Export
             cw.Writeln("/// </code>");
             cw.Writeln("/// </example>");
         }
-        private string SwtichType(string type)
+        #region 转换类型定义
+        private MapTypeData mapType = new MapTypeData(SwtichType)
         {
+            {"wchar_t*"      , "IntPtr"},
+            {"libop*"        , "IntPtr"},
+            {"const wchar_t*", "string"},
+            {"int*"          , "IntPtr"},
+            {"long"          , "int"},
+            {"long*"         , "IntPtr"},
+            {"char*"         , "string"},
+            {"size_t*"       , "IntPtr"},
+            {"void*"         , "IntPtr"},
+            {"std::wstring"  , "string"},
+        };
+        private static string SwtichType(string type, string swtichType, Reference refer)
+        {
+            if (refer == Reference.Ret)
+                return swtichType;
+            string result = string.Empty;
+            if (refer == Reference.Out)
+                result += "out ";
+            if (refer == Reference.InOut)
+                result += "ref ";
             switch (type)
             {
-                case "wchar_t*": return "IntPtr";
-                case "libop*": return "IntPtr";
-                case "const wchar_t*": return "string";
-                case "int*": return "ref int";
-                case "long": return "int";
-                case "long*": return "ref int";
-                case "char*": return "ref string";
-                case "size_t*": return "ref IntPtr";
-                case "void*": return "IntPtr";
-                case "std::wstring": return "string";
-                default: return type;
-            }
-        }
-        private string SwtichType(Arg arg)
-        {
-            string result = string.Empty;
-            if (arg.refType == Reference.Out)
-                result += "out ";
-            if (arg.refType == Reference.InOut)
-                result += "ref ";
-            switch (arg.type)
-            {
-                case "wchar_t*": return "IntPtr";
-                case "libop*": return "IntPtr";
-                case "const wchar_t*": return "string";
                 case "int*": return result + "int";
-                case "long": return "int";
                 case "long*": return result + "int";
                 case "char*": return result + "string";
                 case "size_t*": return result + "IntPtr";
-                case "void*": return "IntPtr";
-                case "std::wstring": return "string";
-                default: return arg.type;
+                default: return swtichType;
             }
         }
+        #endregion
     }
 }

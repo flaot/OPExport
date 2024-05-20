@@ -18,6 +18,7 @@
         {
             if (ManuallyOP)
             {
+                //回调CreateFunc 和 ReleaseFunc
                 foreach (var func in libOP.functions)
                 {
                     if (func.name != LibOP.CreateFunc && func.name != LibOP.ReleaseFunc)
@@ -27,6 +28,7 @@
                     GenerateMethod(showFunc, dllFunc);
                 }
             }
+            //回调CreateFunc 和 ReleaseFunc  之外的函数定义
             foreach (var func in libOP.functions)
             {
                 if (func.name == LibOP.CreateFunc || func.name == LibOP.ReleaseFunc)
@@ -34,7 +36,6 @@
                 var method = libOP.MethodByFunction(func.name);
                 Method showFunc = (Method)method.Clone();
                 Method dllFunc = (Method)func.Clone();
-
                 var findArg = showFunc.args.Find(item => item.refType == Reference.Ret);
                 if (findArg != null)
                 {

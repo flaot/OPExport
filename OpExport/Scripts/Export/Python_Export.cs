@@ -62,7 +62,7 @@ namespace OpExport.Export
             List<string> refArgs = new List<string>(dllFunc.args.Count); //有传'可修改指针'的类型列表 与useArgs对应下标
             foreach (var item in dllFunc.args)
             {
-                string sType = SwtichType(item.type);
+                string sType = mapType.OutArg(item.type, item.refType);
                 var findIndex = args.FindIndex(arg => arg.name == item.name);
                 if (sType.IndexOf('|') >= 0)
                     refArgs.Add(sType.Split('|')[1]);
@@ -110,7 +110,7 @@ namespace OpExport.Export
             List<string> retList = tempArg.ConvertAll(item => item.type);
             if (showFunc.returnType == "std::wstring")
             {
-                retList.Insert(0, SwtichType(showFunc.returnType).Split('|')[0]);
+                retList.Insert(0, mapType.OutArg(showFunc.returnType, Reference.None).Split('|')[0]);
                 string retText = retList.Count > 1 ? string.Format("({0})", string.Join(", ", retList)) : retList[0];
                 string call = string.Format("def {0}({1}) -> {2}:", showFunc.name, showArgTxt, retText);
                 cw.Writeln(call);
@@ -136,7 +136,7 @@ namespace OpExport.Export
             }
             else
             {
-                retList.Insert(0, SwtichType(showFunc.returnType).Split('|')[0]);
+                retList.Insert(0, mapType.OutArg(showFunc.returnType, Reference.None).Split('|')[0]);
                 string retText = retList.Count > 1 ? string.Format("({0})", string.Join(", ", retList)) : retList[0];
                 string call = string.Format("def {0}({1}) -> {2}:", showFunc.name, showArgTxt, retText);
                 cw.Writeln(call);
@@ -177,8 +177,35 @@ namespace OpExport.Export
 
             cw.Writeln("\"\"\"");
         }
-        private string SwtichType(string type)
+        private void GenerateTypeDesc(CodeWriter cw, Method dllFunc)
         {
+            var types = dllFunc.args.ConvertAll(item => mapType.OutRtn(item.type));
+            if(types.Count > 0)
+                cw.Writeln($"self.dll.{dllFunc.name}.argtypes = [{string.Join(", ", types)}]");
+            if(dllFunc.returnType != "void")
+                cw.Writeln($"self.dll.{dllFunc.name}.restype = {mapType.OutRtn(dllFunc.returnType)}");
+        }
+
+        #region 转换类型定义
+        private MapTypeData mapType = new MapTypeData(SwtichType)
+        {
+                {"libop*"        , "c_void_p" },
+                {"void*"         , "c_void_p"},
+                {"void"          , "c_void"},
+                {"int"           , "c_int"},
+                {"wchar_t*"      , "c_wchar_p"},
+                {"const wchar_t*", "c_wchar_p"},
+                {"long"          , "c_long"},
+                {"double"        , "c_double"},
+                {"int*"          , "POINTER(c_int)"},
+                {"long*"         , "POINTER(c_long)"},
+                {"size_t*"       , "POINTER(c_size_t)"},
+        };
+        private static string SwtichType(string type, string swtichType, Reference refer)
+        {
+            if (refer == Reference.Ret)
+                return swtichType;
+
             switch (type)
             {
                 case "double": return "float";
@@ -188,36 +215,10 @@ namespace OpExport.Export
                 case "long*": return "int|c_long";
                 case "char*": return "str|c_wchar_p";
                 case "size_t*": return "int|c_size_t";
-                case "void*": return "c_void_p";
                 case "std::wstring": return "str";
-                default: return type;
+                default: return swtichType;
             }
         }
-        private void GenerateTypeDesc(CodeWriter cw, Method dllFunc)
-        {
-            var types = dllFunc.args.ConvertAll(item => SwitchTypeDesc(item.type));
-            if(types.Count > 0)
-                cw.Writeln($"self.dll.{dllFunc.name}.argtypes = [{string.Join(", ", types)}]");
-            if(dllFunc.returnType != "void")
-                cw.Writeln($"self.dll.{dllFunc.name}.restype = {SwitchTypeDesc(dllFunc.returnType)}");
-        }
-        private string SwitchTypeDesc(string type)
-        {
-            switch (type)
-            {
-                case "libop*": return "c_void_p";
-                case "void*": return "c_void_p";
-                case "void": return "c_void";
-                case "int":  return "c_int";
-                case "wchar_t*": return "c_wchar_p";
-                case "const wchar_t*": return "c_wchar_p";
-                case "long": return "c_long";
-                case "double": return "c_double";
-                case "int*": return "POINTER(c_int)";
-                case "long*": return "POINTER(c_long)";
-                case "size_t*": return "POINTER(c_size_t)";
-                default: return type;
-            }
-        }
+        #endregion
     }
 }

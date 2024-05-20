@@ -111,9 +111,9 @@ namespace OpExport.Export
             foreach (var func in libOP.functions)
             {
                 cw.Writeln();
-                List<string> names = func.args.ConvertAll(item => item.name);
-                cw.Writeln(string.Format("{0} {1}({2});", SwtichType(func.returnType), func.name,
-                    string.Join(", ", func.args.ConvertAll(item => string.Format("{0} {1}", SwtichType(item.type), item.name)))));
+                cw.Writeln(string.Format("{0} {1}({2});", mapType.OutRtn(func.returnType), func.name,
+                    string.Join(", ", func.args.ConvertAll(arg => string.Format("{0} {1}",
+                    mapType.OutArg(arg.type, arg.refType), arg.name)))));
             }
             cw.EndBlock();
             cw.EndBlock();
@@ -121,7 +121,7 @@ namespace OpExport.Export
         }
         protected override void GenerateMethod(Method showFunc, Method dllFunc)
         {
-            showFunc.args.ForEach(item => item.type = SwtichType(item.type));
+            showFunc.args.ForEach(arg => arg.type = mapType.OutArg(arg.type, arg.refType));
             List<string> switchStrList = new List<string>();
             List<string> showArgs = showFunc.args.ConvertAll(item =>
             {
@@ -144,7 +144,7 @@ namespace OpExport.Export
             GenerateAnnotation(cw, showFunc);
             if (showFunc.returnType == "std::wstring")
             {
-                string call = string.Format("public {0} {1}({2})", SwitchReturnType(showFunc.returnType), showFunc.name, string.Join(", ", showArgs));
+                string call = string.Format("public {0} {1}({2})", mapType.OutRtn(showFunc.returnType), showFunc.name, string.Join(", ", showArgs));
                 cw.Writeln(call);
                 cw.StartBlock();
                 foreach (var swItemName in switchStrList)
@@ -169,7 +169,7 @@ namespace OpExport.Export
             }
             else
             {
-                cw.Writeln(string.Format("public {0} {1}({2})", SwitchReturnType(showFunc.returnType), showFunc.name, string.Join(", ", showArgs)));
+                cw.Writeln(string.Format("public {0} {1}({2})", mapType.OutRtn(showFunc.returnType), showFunc.name, string.Join(", ", showArgs)));
                 cw.StartBlock();
                 foreach (var swItemName in switchStrList)
                 {
@@ -194,30 +194,29 @@ namespace OpExport.Export
 
             cw.Writeln(" */");
         }
-        private string SwtichType(string type)
+        #region 转换类型定义
+        private MapTypeData mapType = new MapTypeData(SwtichType)
         {
-            switch (type)
+            {"wchar_t*"      , "Pointer" },
+            {"libop*"        , "Pointer"},
+            {"const wchar_t*", "WString"},
+            {"int*"          , "IntByReference"},
+            {"long"          , "int"},
+            {"long*"         , "IntByReference"},
+            {"char*"         , "Pointer"},
+            {"size_t*"       , "Pointer"},
+            {"void*"         , "Pointer"},
+            {"std::wstring"  , "WString"},
+        };
+        private static string SwtichType(string type, string swtichType, Reference refer)
+        {
+            if (refer == Reference.Ret)
             {
-                case "wchar_t*": return "Pointer";
-                case "libop*": return "Pointer";
-                case "const wchar_t*": return "WString";
-                case "int*": return "IntByReference";
-                case "long": return "int";
-                case "long*": return "IntByReference";
-                case "char*": return "Pointer";
-                case "size_t*": return "Pointer";
-                case "void*": return "Pointer";
-                case "std::wstring": return "WString";
-                default: return type;
+                if (swtichType == "WString")
+                    return "String";
             }
+            return swtichType;
         }
-        private string SwitchReturnType(string type)
-        {
-            string reault = SwtichType(type);
-            if (reault == "WString")
-                return "String";
-            else
-                return reault;
-        }
+        #endregion
     }
 }

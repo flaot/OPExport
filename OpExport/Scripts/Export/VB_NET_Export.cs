@@ -113,7 +113,7 @@ namespace OpExport.Export
                 }
                 else
                 {
-                    cw.Writeln(string.Format("Private Shared Function {1}({2}) As {0}", SwtichRtnType(func.returnType),
+                    cw.Writeln(string.Format("Private Shared Function {1}({2}) As {0}", mapType.OutRtn(func.returnType),
                         func.name, string.Join(", ", func.args.ConvertAll(item => string.Format("{2}{1} As {0}",
                         SwtichType(item, out var preifx), item.name, preifx)))));
                     cw.Writeln("End Function");
@@ -133,7 +133,7 @@ namespace OpExport.Export
             List<string> callNames = dllFunc.args.ConvertAll(item => item.name);
             if (showFunc.returnType == "std::wstring")
             {
-                string functionName = string.Format("Public Function {1}({2}) As {0}", SwtichRtnType(showFunc.returnType), showFunc.name, showArgs);
+                string functionName = string.Format("Public Function {1}({2}) As {0}", mapType.OutRtn(showFunc.returnType), showFunc.name, showArgs);
                 cw.Writeln(functionName);
                 cw.IncIndent();
                 string call = string.Format("{0}({1})", dllFunc.name, string.Join(", ", callNames));
@@ -160,7 +160,7 @@ namespace OpExport.Export
                 }
                 else
                 {
-                    cw.Writeln(string.Format("Public Function {1}({2}) As {0}", SwtichRtnType(showFunc.returnType), showFunc.name, showArgs));
+                    cw.Writeln(string.Format("Public Function {1}({2}) As {0}", mapType.OutRtn(showFunc.returnType), showFunc.name, showArgs));
                     cw.IncIndent();
                     cw.Writeln(string.Format("Return {0}({1})", dllFunc.name, string.Join(", ", callNames)));
                     cw.DecIndent().Writeln("End Function");
@@ -207,27 +207,6 @@ namespace OpExport.Export
             cw.Writeln("''' </code>");
             cw.Writeln("''' </example>");
         }
-        private string SwtichRtnType(string rtnType)
-        {
-            switch (rtnType)
-            {
-                case "wchar_t*": return "IntPtr";
-                case "libop*": return "IntPtr";
-                case "const wchar_t*": return "String";
-                case "long": return "Integer";
-                case "void*": return "IntPtr";
-                case "std::wstring": return "String";
-                case "int": return "Integer";
-                case "double": return "Double";
-
-                //返回值是个 ByRef 类型的
-                case "int*": return "IntPtr";
-                case "long*": return "IntPtr";
-                case "size_t*": return "IntPtr";
-                case "char*": return "String";
-                default: return rtnType;
-            }
-        }
         private string SwtichType(Arg arg, out string prefix)
         {
             prefix = string.Empty;
@@ -235,22 +214,39 @@ namespace OpExport.Export
                 prefix = "<Out> ByRef ";
             if (arg.refType == Reference.InOut)
                 prefix = "ByRef ";
-            switch (arg.type)
+
+            return mapType.OutArg(arg.type, arg.refType);
+        }
+        #region 转换类型定义
+        private MapTypeData mapType = new MapTypeData(SwtichType)
+        {
+                { "wchar_t*"      , "IntPtr" },
+                { "libop*"        , "IntPtr" },
+                { "const wchar_t*", "String" },
+                { "long"          , "Integer"},
+                { "void*"         , "IntPtr" },
+                { "std::wstring"  , "String" },
+                { "int"           , "Integer"},
+                { "double"        , "Double" },
+
+                //返回值是个 ByRef 类型的
+                { "int*"          , "IntPtr"},
+                { "long*"         , "IntPtr"},
+                { "size_t*"       , "IntPtr"},
+                { "char*"         , "String"},
+        };
+        private static string SwtichType(string type, string swtichType, Reference refer)
+        {
+            if (refer == Reference.Ret)
+                return swtichType;
+
+            switch (type)
             {
-                case "wchar_t*": return "IntPtr";
-                case "libop*": return "IntPtr";
-                case "const wchar_t*": return "String";
                 case "int*": return "Integer";
-                case "long": return "Integer";
-                case "int": return "Integer";
                 case "long*": return "Integer";
-                case "char*": return "String";
-                case "size_t*": return "IntPtr";
-                case "void*": return "IntPtr";
-                case "std::wstring": return "String";
-                case "double": return "Double";
-                default: return arg.type;
+                default: return swtichType;
             }
         }
+        #endregion
     }
 }
