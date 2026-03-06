@@ -36,10 +36,6 @@ namespace OpExport
                 string[] commandArgs = System.Environment.GetCommandLineArgs();
                 string[] args = new string[commandArgs.Length - 1];
                 Array.Copy(commandArgs, 1, args, 0, args.Length);
-#if DEBUG
-                args = new string[] { "D:\\git\\op", "-t", "D:\\git\\OPExport\\OpExport\\bin\\Debug\\net10.0\\Template\\Help.sbncs", 
-                "-out", "C++\\OpSoft2.md"}; //Debug调试
-#endif
                 Parser.TryParse(args, out optionsInstance, parserOptions);
                 return optionsInstance;
             }
