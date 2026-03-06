@@ -1,0 +1,73 @@
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+{{~
+    gDefine = { 
+        Prefix: "OP_", #导出OP函数的前缀名称
+    } 
+~}}
+{{~
+func func_switchType(typeStr)
+    if typeStr == "libop*"
+        ret "void*"
+    else
+        ret typeStr
+    end
+end    
+~}}
+
+#include "libopExport.h"
+#include <windows.h>
+
+#undef FindWindow
+#undef FindWindowEx
+#undef SetWindowText
+
+HMODULE hinst = NULL;
+
+{{~ for $field in libOP.functions ~}}
+{{~ $str = $field.args | array.map "type" | array.each @func_switchType | array.join ", " ~}}
+typedef {{func_switchType $field.rtype}}(*p{{$field.name}}Func)({{$str}});
+{{~ end ~}}
+{{~ for $field in libOP.functions ~}}
+p{{$field.name}}Func _{{$field.name}} = NULL;
+{{~ end ~}}
+
+int {{gDefine.Prefix}}LoadDll(wchar_t *dllPath)
+{
+    hinst = LoadLibraryW(dllPath);
+    if (NULL == hinst)
+        return 0;
+    else
+        return 1;
+}
+void {{gDefine.Prefix}}UnLoadDll()
+{
+    FreeLibrary(hinst);
+    hinst = NULL;
+    {{~ for $field in libOP.functions ~}}
+    _{{$field.name}} = NULL;
+    {{~ end ~}}
+}
+{{~ for $field in libOP.functions ~}}
+{{~
+    $argStrArray = []
+    for $arg in $field.args
+        $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
+    end
+    $argStr = $argStrArray | array.join ", "
+
+    $argNameStr = $field.args | array.map "name" | array.each @func_switchType | array.join ", "
+~}}
+{{func_switchType $field.rtype}} {{$field.name}}({{$argStr}})
+{
+    if(_{{$field.name}} == NULL)
+        _{{$field.name}} = (p{{$field.name}}Func)GetProcAddress(hinst, "{{$field.name}}");
+{{~ if $field.rtype != "void" ~}}
+    return _{{$field.name}}({{$argNameStr}});
+{{~ else ~}}
+    _{{$field.name}}({{$argNameStr}});
+{{~ end ~}}
+}
+{{~ end ~}}

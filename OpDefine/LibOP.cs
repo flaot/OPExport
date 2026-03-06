@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace OpExport
+﻿namespace OpDefine
 {
     public class LibOP
     {
@@ -33,7 +30,7 @@ namespace OpExport
             if (functionName == CreateFunc || functionName == ReleaseFunc)
                 return null;
             string methodName = functionName.Substring(Prefix.Length);
-            return _methods.Find(item => item.name == methodName);
+            return (Method)_methods.Find(item => item.name == methodName).Clone();
         }
 
         /// <summary> 读取libop.h文件及com定义文件 </summary>
@@ -58,7 +55,7 @@ namespace OpExport
                 }
                 for (int i = 0; i < naMethod.args.Count; i++)
                 {
-                    naMethod.args[i].refType = findIdl.args[i].refType;
+                    naMethod.args[i].rtype = findIdl.args[i].rtype;
                 }
             }
             _methods = nativeLibOPMethods;
@@ -71,14 +68,14 @@ namespace OpExport
             {
                 foreach (var arg in method.args)
                 {
-                    if (arg.refType != Reference.None)
+                    if (arg.rtype != Reference.None)
                         continue;
                     if (arg.name == "ret" || arg.name == "retstr")
-                        arg.refType = Reference.Ret;
+                        arg.rtype = Reference.Ret;
                     else if (arg.type.Contains('*'))
-                        arg.refType = Reference.InOut;
+                        arg.rtype = Reference.InOut;
                     else
-                        arg.refType = Reference.In;
+                        arg.rtype = Reference.In;
                 }
             }
         }
@@ -108,8 +105,8 @@ namespace OpExport
             //补充额外的函数
             functions.Insert(0, new Method()
             {
-                returnType = "void",
-                returnAnnotation = string.Empty,
+                rtype = "void",
+                rannotation = string.Empty,
                 example = string.Empty,
                 name = ReleaseFunc,
                 annotation = string.Empty,
@@ -117,8 +114,8 @@ namespace OpExport
             });
             functions.Insert(0, new Method()
             {
-                returnType = "libop*",
-                returnAnnotation = string.Empty,
+                rtype = "libop*",
+                rannotation = string.Empty,
                 example = string.Empty,
                 name = CreateFunc,
                 annotation = string.Empty,
@@ -131,31 +128,31 @@ namespace OpExport
         /// <param name="function"></param>
         private void SwtichCPlusPlus(Method function)
         {
-            if (function.returnType == "std::wstring")
+            if (function.rtype == "std::wstring")
             {
-                function.returnType = "int";
+                function.rtype = "int";
                 function.args.Add(new Arg() { type = "wchar_t*", name = PStr, annotation = string.Empty });
                 function.args.Add(new Arg() { type = "int", name = PStrSize, annotation = string.Empty });
                 return;
             }
 
-            var findArg = function.args.Find(item => item.refType == Reference.Ret);
+            var findArg = function.args.Find(item => item.rtype == Reference.Ret);
             if (findArg == null)
                 return;
 
             if (findArg.type == "long*")
             {
-                function.returnType = "long";
+                function.rtype = "long";
                 if (!string.IsNullOrEmpty(findArg.annotation))
-                    function.returnAnnotation = findArg.annotation;
+                    function.rannotation = findArg.annotation;
                 function.args.Remove(findArg);
                 return;
             }
             if (findArg.type == "std::wstring&")
             {
-                function.returnType = "int";
+                function.rtype = "int";
                 if (!string.IsNullOrEmpty(findArg.annotation))
-                    function.returnAnnotation = findArg.annotation;
+                    function.rannotation = findArg.annotation;
                 function.args.Remove(findArg);
                 function.args.Add(new Arg() { type = "wchar_t*", name = PStr, annotation = string.Empty });
                 function.args.Add(new Arg() { type = "int", name = PStrSize, annotation = string.Empty });
@@ -178,7 +175,7 @@ namespace OpExport
 
                 method.example = annotation.example;
                 method.annotation = annotation.funcAnnotation;
-                method.returnAnnotation = annotation.returnAnnotation;
+                method.rannotation = annotation.returnAnnotation;
                 for (int i = 0; i < method.args.Count - 1; i++)
                 {
                     var arg = method.args[i];
@@ -192,14 +189,14 @@ namespace OpExport
             }
         }
         private LibOP() { }
-        public static LibOP Create(string libopFile, string idlFile)
+        public static LibOP Create(string libopFile, string idlFile, bool fullDocument)
         {
             LibOP libOP = new LibOP();
             //step.1 读取libop.h文件及com定义文件
             libOP.FullOPLibOP(libopFile, idlFile);
 
             //step.1.1 填充注释
-            if (Options.Inst.Document)
+            if (fullDocument)
                 libOP.FullAnnotation();
 
             //step.2 自动识别未定义的引用类型

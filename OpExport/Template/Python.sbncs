@@ -1,0 +1,270 @@
+"""
+This is an automatically generated class by OpExport. Please do not modify it. 
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE
+"""
+{{~
+    gDefine = { 
+        Prefix: "OP_", #导出OP函数的前缀名称
+        ObjName: "_op", #插入的对象名称
+        PStr: "_pStr", #插入的字符串指针名称
+        PStrSize: "_nSize", #插入的字符串指针长度名称
+        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+    } 
+~}}
+{{~
+#转换类型    
+func func_switchType(varType)
+    case varType
+        when "wchar_t*" 
+            ret "c_wchar_p"
+        when "libop*" 
+            ret "c_void_p"
+        when "const wchar_t*" 
+            ret "c_wchar_p"
+        when "int*" 
+            ret "POINTER(c_int)"
+        when "long" 
+            ret "c_long"
+        when "long*" 
+            ret "POINTER(c_long)"
+        when "size_t*" 
+            ret "POINTER(c_size_t)"
+        when "void*" 
+            ret "c_void_p"
+        when "void" 
+            ret "c_void"
+        when "int" 
+            ret "c_int"
+        when "double" 
+            ret "c_double"
+        else 
+            ret varType
+    end
+end
+#转换参数类型
+func func_switchArgType(varType, refType)
+    $type = (func_switchType varType)
+    if refType == 4 #Ret
+        ret $type
+    end
+    case varType
+        when "double" 
+            ret "float"
+        when "long" 
+            ret "int"
+        when "char*" 
+            ret "str|c_wchar_p"
+        when "size_t*" 
+            ret "int|c_size_t"
+        when "const wchar_t*" 
+            ret "str"
+        when "int*" 
+            ret "int|c_int"
+        when "long*" 
+            ret "int|c_long"
+        when "std::wstring" 
+            ret "str"
+        else 
+            ret $type
+    end
+end
+#转换返回类型
+func func_switchRtnType(varType)
+    ret (func_switchArgType varType 4)
+end
+#生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        if $findArg.type == "long*"
+            $exMethod.rtype = "long";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        if $findArg.type == "std::wstring&"
+            $exMethod.rtype = "std::wstring";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+~}}
+
+# coding=UTF-8
+from ctypes import *
+
+
+class OpSoft:
+    def __init__(self, dll_file):
+        self.{{gDefine.PStr}} = c_wchar_p(0)
+        self.{{gDefine.PStrSize}} = c_int()
+        self.dll = cdll.LoadLibrary(dll_file)
+        self.dll.{{gDefine.CreateFunc}}.restype = c_void_p
+        self.{{gDefine.ObjName}} = self.dll.{{gDefine.CreateFunc}}()
+
+    def __del__(self):
+        self.dll.{{gDefine.ReleaseFunc}}.argtypes = [c_void_p]
+        self.dll.{{gDefine.ReleaseFunc}}(self.{{gDefine.ObjName}})
+        self.{{gDefine.ObjName}} = None
+        self.dll = None
+        self.{{gDefine.PStr}} = None
+        self.{{gDefine.PStrSize}} = None
+{{~ for $field in libOP.functions ~}}
+{{~ 
+if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc
+    $showFunc = func_genFunc $field
+#设定方法类型语句
+$orgSetTypeArray = []
+$orgArgArray = []
+for $arg in $field.args
+    $orgArgArray = $orgArgArray | array.add (func_switchRtnType $arg.type)
+end
+if ($orgArgArray | array.size) > 0
+    $orgSetTypeArray = $orgSetTypeArray | array.add ("self.dll." + $field.name + ".argtypes = [" + ($orgArgArray | array.join ", ") + "]")
+end
+if $field.rtype != "void"
+    $orgSetTypeArray = $orgSetTypeArray | array.add ("self.dll." + $field.name + ".restype = " + (func_switchRtnType $field.rtype))
+end
+
+$showArgs = [] #封装调用参数
+$useArgs = [] #调用DLL的参数
+$refArgs = [] #有传'可修改指针'的类型列表 与useArgs对应下标
+$showArgTxtArray = []
+for $arg in $field.args
+    $sType = func_switchArgType $arg.type $arg.rtype
+    $findIndex = -1
+    $curIndex = 0
+    for $tempArg in $showFunc.args
+        if $tempArg.name == $arg.name
+            $findIndex = $curIndex
+            break
+        end
+        $curIndex = $curIndex + 1
+    end
+    if $sType | string.contains "|"
+        $refArgs = $refArgs | array.add ($sType | string.split "|" | array.last)
+    else
+        $refArgs = $refArgs | array.add ""
+    end
+    $arg.type = ($sType | string.split "|" | array.first)
+    $useArgs = $useArgs | array.add $arg
+    if $findIndex < 0
+        continue
+    end
+    $showArgTxtArray = $showArgTxtArray | array.add ($arg.name + ": " + $arg.type)
+end
+#组装 封装调用的参数'showArgTxt'
+$showArgTxt = $showArgTxtArray | array.join ", "
+if ($showArgTxt | string.size) > 0
+    $showArgTxt = $showArgTxt | string.prepend ", "
+end
+$showArgTxt = $showArgTxt | string.prepend "self"
+#组装 调用DLL的参数'names'
+$names = []
+$curIndex = -1
+for $uArg in $useArgs
+    $curIndex = $curIndex + 1
+    $refName = $refArgs | array.offset $curIndex | array.first
+    if $refName != ""
+        $names = $names | array.add ("byref(_" + $uArg.name + ")")
+        continue
+    end
+    if $uArg.name | string.starts_with "_"
+        $names = $names | array.add ("self." + $uArg.name)
+    else
+        $names = $names | array.add $uArg.name
+    end
+end
+#有'可修改指针'的参数列表
+$tempArg = []
+$curIndex = -1
+for $tName in $names
+    $curIndex = $curIndex + 1
+    $refName = $refArgs | array.offset $curIndex | array.first
+    if $refName == ""
+        continue
+    end
+    $uArg = $useArgs | array.offset $curIndex | array.first
+    $tempArg = $tempArg | array.add $uArg
+end
+#有'可修改指针'的返回值类型列表
+$retList = $tempArg | array.map "type"
+$retText = ""
+$retList = $retList | array.insert_at 0 (((func_switchArgType $showFunc.rtype 0) | string.split "|") | array.first)
+if ($retList | array.size) > 1
+    $retText = "(" + ($retList | array.join ", ") + ")"
+else
+    $retText = $retList | array.first
+end
+ ~}}
+
+    def {{$showFunc.name}}({{$showArgTxt}}) -> {{$retText}}:
+    {{~ #代码注释 ~}}
+        """
+{{~ if !($showFunc.annotation | string.empty) ~}}
+        {{$showFunc.annotation | string.replace "\n" " "}}
+{{~ end ~}}
+
+{{~ for $a in $showFunc.args ~}}
+        {{$a.name}} -- {{$a.annotation | string.replace "\n" " "}}
+{{~ end ~}}
+{{~ if !($showFunc.rannotation | string.empty)~}}
+        {{$showFunc.rannotation | string.replace "\n" " "}}
+{{~ end ~}}
+        """
+{{~ for $setTypeStr in $orgSetTypeArray ~}}
+        {{$setTypeStr}}
+{{~ end ~}}
+{{~ 
+$curIndex = -1
+for $name in $names 
+    $curIndex = $curIndex + 1
+    $refName = $refArgs | array.offset $curIndex | array.first
+    if $refName != ""
+        $useArg = $useArgs | array.offset $curIndex | array.first ~}}
+        _{{$useArg.name}} = {{$refName}}({{$useArg.name}})
+    {{~ end ~}}
+{{~ end ~}}
+{{~ if $showFunc.rtype == "std::wstring" ~}}
+        _size = self.dll.{{$field.name}}({{$names | array.join ", "}})
+        if _size > 0:
+            self.{{gDefine.PStrSize}} = _size
+            self.{{gDefine.PStr}} = create_unicode_buffer(int(_size / sizeof(c_wchar)))
+            self.dll.{{$field.name}}({{$names | array.join ", "}})
+
+        return self.{{gDefine.PStr}}.value
+{{~ else ~}}
+{{~ if ($tempArg | array.size) > 0 ~}}
+{{~
+$tArgStr = ""
+$tArgArray = []
+for $tArg in $tempArg 
+    $tArgArray = $tArgArray | array.add ("_" + $tArg.name + ".value")
+end
+$tArgStr = $tArgArray | array.join ", "
+~}}
+        _result = self.dll.{{$field.name}}({{$names | array.join ", "}})
+        return _result, {{$tArgStr}}
+{{~ else ~}}
+        return self.dll.{{$field.name}}({{$names | array.join ", "}})
+{{~ end ~}}
+{{~ end -}}
+
+{{~ end ~}}
+{{~ end ~}}
+

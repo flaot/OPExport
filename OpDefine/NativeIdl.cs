@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-
-namespace OpExport
+﻿namespace OpDefine
 {
     public class NativeIdl : IParser<List<Method>>
     {
@@ -57,8 +53,8 @@ namespace OpExport
                 return null;
 
             Method method = new Method();
-            method.returnType = methodDefine.Substring(0, returnTypeSplitIndex).Trim();
-            method.returnAnnotation = string.Empty;
+            method.rtype = methodDefine.Substring(0, returnTypeSplitIndex).Trim();
+            method.rannotation = string.Empty;
             method.example = string.Empty;
             method.annotation = string.Empty;
             method.name = methodDefine.Substring(returnTypeSplitIndex, methonStartIndex - returnTypeSplitIndex).Trim();
@@ -97,7 +93,7 @@ namespace OpExport
                 Arg arg = new Arg();
                 arg.name = argName;
                 arg.type = argType;
-                arg.refType = PauseReference(argRef);
+                arg.rtype = PauseReference(argRef);
                 arg.annotation = string.Empty;
                 method.args.Add(arg);
 

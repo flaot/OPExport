@@ -1,7 +1,4 @@
-﻿using System.Collections.Generic;
-using System.IO;
-
-namespace OpExport
+﻿namespace OpDefine
 {
     public class NativeLibOP : IParser<List<Method>>
     {
@@ -87,8 +84,8 @@ namespace OpExport
                 return null;
 
             Method method = new Method();
-            method.returnType = methodDefine.Substring(0, returnTypeSplitIndex).Trim();
-            method.returnAnnotation = string.Empty;
+            method.rtype = methodDefine.Substring(0, returnTypeSplitIndex).Trim();
+            method.rannotation = string.Empty;
             method.example = string.Empty;
             method.annotation = string.Join("\n", methodTxt);
             method.name = methodDefine.Substring(returnTypeSplitIndex, methonStartIndex - returnTypeSplitIndex).Trim();

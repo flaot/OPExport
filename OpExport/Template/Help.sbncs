@@ -1,0 +1,101 @@
+{{~
+    gDefine = { 
+        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+        OutAll: false, #是否输出全部定义
+    } 
+~}}
+## 模版编写说明
+以`.sbncs`结尾文件为模版文件，[模版文件语法文档](https://scriban.github.io/docs/)
+
+### 内置对象(libOP)
+定义如下
+```C#
+public class LibOP
+{
+    // 导出函数(OP_XXX)
+    public List<Method> functions;
+}
+public class Method
+{
+    public string name;        //函数名称
+    public string annotation;  //注释
+    public string rtype;       //返回类型
+    public string rannotation; //返回类型注释
+    public List<Arg> args;     //参数类型及参数名称
+    public string example;    //使用示范
+}
+public class Arg
+{
+    public string name;        //参数名称
+    public string type;        //参数类型
+    public int rtype;          //传递引用类型 0-None 1-In 2-Out 3-InOut 4-Ret
+    public string annotation;  // 参数注释
+}
+```
+
+### 内置方法
+```ini  
+# 根据'dll导出函数名称'获取'原始函数'定义
+_func_methodByFunction [funcName:str]
+    ret [methodObj:method]
+
+# 在参数列表中移除下标为index的
+_func_argsRemoveAt [args:List<Arg>] [index:int]
+    ret [void]
+```  
+
+### 输出示例
+`libOP.functions` 获取dll导出函数定义
+```C  
+{{~ 
+$hashArray = []
+for $field in libOP.functions
+    $argStrArray = []
+    for $arg in $field.args
+        $argStrArray = $argStrArray | array.add ($arg.type + " " + $arg.name)
+    end
+    $argStr = $argStrArray | array.join ", " 
+    if !gDefine.OutAll &&$field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc 
+        if $hashArray | array.contains $field.rtype
+            continue
+        else
+            $hashArray = $hashArray | array.add $field.rtype
+        end
+    end
+~}}
+{{~ if !($field.annotation | string.empty)~}}
+// {{ $field.annotation | string.replace "\n" " " }}  
+{{~ end ~}}
+{{$field.rtype}} {{$field.name}}({{$argStr}});  
+{{~ end ~}}
+```  
+
+`_func_methodByFunction` 获取原始定义
+```C  
+{{~ 
+$hashArray = []
+for $field in libOP.functions
+    $exMethod = (_func_methodByFunction $field.name)
+    if $exMethod == null
+        continue
+    end
+    $argStrArray = []
+    for $arg in $exMethod.args
+        $argStrArray = $argStrArray | array.add ($arg.type + " " + $arg.name)
+    end
+    $argStr = $argStrArray | array.join ", "
+    if !gDefine.OutAll && $exMethod.name != gDefine.CreateFunc && $exMethod.name != gDefine.ReleaseFunc 
+        if $hashArray | array.contains $exMethod.rtype
+            continue
+        else
+            $hashArray = $hashArray | array.add $exMethod.rtype
+        end
+    end
+~}}
+{{~ if !($field.annotation | string.empty)~}}
+// {{ $field.annotation | string.replace "\n" " " }}  
+{{~ end ~}} 
+{{$exMethod.rtype}} {{$exMethod.name}}({{$argStr}});  
+{{~ end ~}}
+```  

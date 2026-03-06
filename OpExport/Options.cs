@@ -11,8 +11,11 @@ namespace OpExport
         [RequiredArgument(0, "op", "OP Project")]
         public string Project { get; set; }
 
-        [OptionalArgument(LanguageFlags.OP, "lang", "Language Flags")]
-        public LanguageFlags Language { get; set; }
+        [OptionalArgument("", "t", "Tempalte File")]
+        public string Template { get; set; }
+
+        [OptionalArgument("", "out", "Output File")]
+        public string OutFile { get; set; }
 
         [OptionalArgument(false, "doc", "Apply github document by OP")]
         public bool Document { get; set; }
@@ -33,7 +36,10 @@ namespace OpExport
                 string[] commandArgs = System.Environment.GetCommandLineArgs();
                 string[] args = new string[commandArgs.Length - 1];
                 Array.Copy(commandArgs, 1, args, 0, args.Length);
-                //args = new string[] { "D:\\git\\op" }; //Debug调试
+#if DEBUG
+                args = new string[] { "D:\\git\\op", "-t", "D:\\git\\OPExport\\OpExport\\bin\\Debug\\net10.0\\Template\\Help.sbncs", 
+                "-out", "C++\\OpSoft2.md"}; //Debug调试
+#endif
                 Parser.TryParse(args, out optionsInstance, parserOptions);
                 return optionsInstance;
             }

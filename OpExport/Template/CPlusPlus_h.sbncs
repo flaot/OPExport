@@ -1,0 +1,120 @@
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+{{~
+    gDefine = { 
+        Prefix: "OP_", #导出OP函数的前缀名称
+        ObjName: "_op", #插入的对象名称
+        PStr: "_pStr", #插入的字符串指针名称
+        PStrSize: "_nSize", #插入的字符串指针长度名称
+        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+    } 
+~}}
+{{~
+func func_switchType(typeStr)
+    if typeStr == "libop*"
+        ret "void*"
+    else
+        ret typeStr
+    end
+end    
+#生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    if dllFunc.name == gDefine.CreateFunc || dllFunc.name == gDefine.ReleaseFunc 
+        ret dllFunc
+    end
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        if $findArg.type == "long*"
+            $exMethod.rtype = "long";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        if $findArg.type == "std::wstring&"
+            $exMethod.rtype = "std::wstring";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+~}}
+
+#pragma once
+#ifndef LIBOP_EXPORT_H
+#define LIBOP_EXPORT_H
+
+{{~ for $field in libOP.functions ~}}
+{{~ $str = $field.args | array.map "type" | array.each @func_switchType | array.join ", " ~}}
+typedef {{func_switchType $field.rtype}}(*p{{$field.name}}Func)({{$str}});
+{{~ end ~}}
+
+#include <windows.h>
+#include <string>
+
+#undef FindWindow
+#undef FindWindowEx
+#undef SetWindowText
+
+class libop
+{
+    public:
+        libop();
+        ~libop();
+        /* 加载dll成功返回true；反之，为false*/
+        static bool LoadDll(const std::wstring &dllPath);
+        /*主动卸载dll*/
+        static void UnLoadDll();
+
+    public:
+{{~ for $field in libOP.functions ~}}
+{{~ $showFunc = func_genFunc $field ~}}
+        /**\brief {{$showFunc.annotation}}
+{{~ $num = ($showFunc.args | array.size) - 1 ~}}
+{{~ if $num >= 0 ~}}
+{{~ for $index in (0..$num) ~}}
+{{~ $temp = $showFunc.args | array.offset $index | array.first ~}}
+        *\param {{$temp.name}} {{$temp.annotation | string.replace "\n" " "}}
+{{~ end ~}}
+{{~ end ~}}
+{{~ if !($showFunc.rannotation | string.empty)~}}
+        *\\return {{$showFunc.rtype}} {{$showFuncrannotation | string.replace "\n" " "}}
+{{~ end ~}}
+        */
+{{~
+$argStrArray = []
+for $arg in $showFunc.args
+    $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
+end
+$argStr = $argStrArray | array.join ", "
+~}}
+        {{func_switchType $showFunc.rtype}} {{$showFunc.name}}({{$argStr}});
+
+{{~ end ~}}
+
+    private:
+        void* {{gDefine.ObjName}};
+        wchar_t* {{gDefine.PStr}};
+        int {{gDefine.PStrSize}};
+        static HMODULE _hinst;
+
+{{~ for $field in libOP.functions ~}}
+        p{{$field.name}}Func _{{$field.name}};
+{{~ end ~}}
+};
+    #endif // !LIBOP_EXPORT_H

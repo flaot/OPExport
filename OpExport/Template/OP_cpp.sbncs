@@ -1,0 +1,108 @@
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+{{~
+    gDefine = { 
+        Prefix: "OP_", #导出OP函数的前缀名称
+        ObjName: "_op", #插入的对象名称
+        PStr: "_pStr", #插入的字符串指针名称
+        PStrSize: "_nSize", #插入的字符串指针长度名称
+        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+    } 
+~}}
+
+{{~
+#生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        if $findArg.type == "long*"
+            $exMethod.rtype = "long";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        if $findArg.type == "std::wstring&"
+            $exMethod.rtype = "std::wstring";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+~}}
+#include "libopExport.h"
+
+libop* {{gDefine.CreateFunc}}()
+{
+    return new libop();
+}
+void {{gDefine.ReleaseFunc}}(libop* {{gDefine.ObjName}})
+{
+    delete {{gDefine.ObjName}};
+}
+{{~ for $field in libOP.functions ~}}
+{{~ if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc ~}}
+ {{~ #生成方法
+$showFunc = func_genFunc $field
+$oMethod = (_func_methodByFunction $field.name)
+
+$argStrArray = []
+for $arg in $field.args
+    $argStrArray = $argStrArray | array.add ($arg.type + " " + $arg.name)
+end
+$argStr = $argStrArray | array.join ", "
+
+$argNameStrArray = []
+for $arg in $oMethod.args
+    $argNameStrArray = $argNameStrArray | array.add $arg.name
+end
+$argNameStr = $argNameStrArray | array.join ", "
+~}}
+{{$field.rtype}} {{$field.name}}({{$argStr}})
+{
+{{~ if $oMethod.rtype == "std::wstring" ~}}
+    std::wstring wstr = {{gDefine.ObjName}}->{{$oMethod.name}}({{$argNameStr}});
+    if ({{gDefine.PStr}} == nullptr || {{gDefine.PStrSize}} <= (int)(wstr.length() * sizeof(wchar_t)))
+        return (int)(wstr.length() + 1) * sizeof(wchar_t);
+    wcscpy_s({{gDefine.PStr}}, {{gDefine.PStrSize}} / sizeof(wchar_t), wstr.c_str());
+    return 0;
+{{~ else if $showFunc.rtype == "std::wstring" ~}}
+{{~ $lastArg = $oMethod.args | array.last ~}}
+    std::wstring {{$lastArg.name}};
+    {{gDefine.ObjName}}->{{$oMethod.name}}({{$argNameStr}});
+    if ({{gDefine.PStr}} == nullptr || {{gDefine.PStrSize}} <= (int)({{$lastArg.name}}.length() * sizeof(wchar_t)))
+        return (int)({{$lastArg.name}}.length() + 1) * sizeof(wchar_t);
+    wcscpy_s({{gDefine.PStr}}, {{gDefine.PStrSize}} / sizeof(wchar_t), {{$lastArg.name}}.c_str());
+    return 0;
+{{~ else if $oMethod.rtype != "long" && $showFunc.rtype == "long" ~}}
+{{~ 
+    $lastArg = $oMethod.args | array.last 
+    $tempArray = $argNameStrArray
+    $size = $argNameStrArray | array.size
+    $tempArray = $tempArray | array.remove_at ($size - 1)
+    $tempArray = $tempArray | array.add ("&" + $lastArg.name)
+~}}
+    long {{$lastArg.name}};
+    {{gDefine.ObjName}}->{{$oMethod.name}}({{$tempArray | array.join ", "}});
+    return {{$lastArg.name}};
+{{~ else ~}}
+    return {{gDefine.ObjName}}->{{$oMethod.name}}({{$argNameStr}});
+{{~ end -}}
+}
+{{~ end ~}}
+{{~ end ~}}

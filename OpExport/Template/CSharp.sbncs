@@ -1,0 +1,256 @@
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+{{~
+    gDefine = { 
+        Prefix: "OP_", #导出OP函数的前缀名称
+        ObjName: "_op", #插入的对象名称
+        PStr: "_pStr", #插入的字符串指针名称
+        PStrSize: "_nSize", #插入的字符串指针长度名称
+        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+
+        Dll32Path: "./Dll/op_x32.dll",
+        Dll64Path: "./Dll/op_x64.dll",
+    } 
+~}}
+
+{{~
+#转换类型    
+func func_switchType(varType)
+    case varType
+        when "wchar_t*" 
+            ret "IntPtr"
+        when "libop*" 
+            ret "IntPtr"
+        when "const wchar_t*" 
+            ret "string"
+        when "int*" 
+            ret "IntPtr"
+        when "long" 
+            ret "int"
+        when "long*" 
+            ret "IntPtr"
+        when "char*" 
+            ret "IntPtr"
+        when "size_t*" 
+            ret "IntPtr"
+        when "void*" 
+            ret "IntPtr"
+        when "std::wstring" 
+            ret "string"
+        else 
+            ret varType
+    end
+end
+#转换参数类型 带ref out in
+func func_switchArgType(varType, refType)
+    $type = (func_switchType varType)
+    if refType == 4 #Ret
+        ret $type
+    end
+    $result = ""
+    if refType == 2 #Out
+        $result = "out "
+    else if refType == 3 #InOut
+        $result = "ref "
+    end
+    case varType
+        when "int*" 
+            ret $result + "int"
+        when "long*" 
+            ret $result + "int"
+        when "char*" 
+            ret $result + "string"
+        when "size_t*" 
+            ret $result + "IntPtr"
+        else 
+            ret $type
+    end
+end
+#转换返回类型
+func func_switchRtnType(varType)
+    ret (func_switchArgType varType 4)
+end
+#组合定义类型
+func func_mergeArgTypeByDefine(argArray)
+    $argStrArray = []
+    for $arg in argArray
+        $temp = (func_switchArgType $arg.type $arg.rtype) + " " + $arg.name
+        $argStrArray = $argStrArray | array.add $temp
+    end
+    ret ($argStrArray | array.join ", ")
+end
+#生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        if $findArg.type == "long*"
+            $exMethod.rtype = "long";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        if $findArg.type == "std::wstring&"
+            $exMethod.rtype = "std::wstring";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+~}}
+
+using System;
+using System.Runtime.InteropServices;
+public partial class OpSoft: IDisposable, IComparable<OpSoft>
+{
+#if X86
+    const string DLL_NAME = {{gDefine.Dll32Path}};
+#else
+    const string DLL_NAME = {{gDefine.Dll64Path}};
+#endif
+
+    private IntPtr {{gDefine.ObjName}}; // 非托管资源
+    private IntPtr {{gDefine.PStr}} = IntPtr.Zero;
+    private int {{gDefine.PStrSize}} = 0;
+
+    #region Dispose
+    private bool disposed = false;   // 是否已经释放资源的标志
+    public OpSoft()
+    {
+        {{gDefine.ObjName}} = {{gDefine.CreateFunc}}();
+    }
+    ~OpSoft() => Dispose(false);
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!this.disposed)
+        {
+            if (disposing)
+            {
+            }
+            {{gDefine.ReleaseFunc}}({{gDefine.ObjName}});
+            {{gDefine.ObjName}} = IntPtr.Zero;
+            if ({{gDefine.PStrSize}} > 0)
+            {
+                Marshal.FreeHGlobal({{gDefine.PStr}});
+                {{gDefine.PStr}} = IntPtr.Zero;
+                {{gDefine.PStrSize}} = 0;
+            }
+        }
+        disposed = true;
+    }
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+    #endregion
+    #region Overroid
+    public override bool Equals(object obj) => obj is OpSoft soft && GetID() == soft.GetID();
+    public override int GetHashCode() => GetID().GetHashCode();
+    public override string ToString() => string.Format("id:{0}", GetID());
+    public int CompareTo(OpSoft other) => GetID().CompareTo(other.GetID());
+    #endregion
+    
+{{~ for $field in libOP.functions ~}}
+{{~ if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc ~}}
+{{~ $showFunc = func_genFunc $field ~}}
+{{~ #代码注释 ~}}
+    /// <summary>
+{{~ if $showFunc.annotation | string.empty ~}}
+    /// 
+{{~ else ~}}
+{{~ for $a in $showFunc.annotation | string.split '\n' ~}}
+    /// {{$a}}
+{{~ end ~}}
+{{~ end ~}}
+    /// </summary>
+{{~ for $a in $showFunc.args ~}}
+    /// <param name="{{$a.name}}">{{$a.annotation | string.replace "\n" " "}}</param>
+{{~ end ~}}
+{{~ if !($showFunc.rannotation | string.empty)~}}
+    /// <returns>{{$showFunc.rannotation | string.replace "\n" " "}}</returns>
+{{~ end ~}}
+{{~ if !($showFunc.example | string.empty)~}}
+    /// <example>
+    /// <code>
+{{~ for $a in $showFunc.example | string.split '\n' ~}}
+    /// {{$a}}
+{{~ end ~}}
+    /// </code>
+    /// </example>
+{{~ end -}}
+
+{{~ #生成方法
+$argStrArray = []
+ for $a in $showFunc.args
+     $a.type = func_switchArgType $a.type $a.rtype
+     $temp = $a.type + " " + $a.name
+     $argStrArray = $argStrArray | array.add $temp
+ end 
+$showArgs = ($argStrArray | array.join ", ")
+
+$callNames = []
+for $arg in $field.args
+    $findItem = null
+    for $showArg in $showFunc.args
+        if $showArg.name == $arg.name
+            $findItem = $showArg
+            break
+        end
+    end
+    if $findItem == null
+        $callNames = $callNames | array.add $arg.name
+    else
+        if $findItem.type | string.starts_with "ref "
+            $callNames = $callNames | array.add ("ref " + $arg.name)
+        else if $findItem.type | string.starts_with "out "
+            $callNames = $callNames | array.add ("out " + $arg.name)
+        else
+            $callNames = $callNames | array.add $arg.name
+        end
+    end
+
+end
+ ~}}
+{{~ if $showFunc.rtype == "std::wstring" ~}}
+    public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}})
+    {
+        int _size = {{$field.name}}({{$callNames | array.join ", "}});
+        if (_size > 0)
+        {
+            if ({{gDefine.PStrSize}} > 0) Marshal.FreeHGlobal({{gDefine.PStr}});
+            {{gDefine.PStr}} = Marshal.AllocHGlobal({{gDefine.PStrSize}} = _size);
+            {{$field.name}}({{$callNames | array.join ", "}});
+        }
+        string str = Marshal.PtrToStringUni({{gDefine.PStr}});
+        return str;
+    }
+{{~ else ~}}
+    public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}}) => {{$field.name}}({{$callNames | array.join ", "}});
+{{~ end -}}
+
+{{~ end ~}}
+{{~ end ~}}
+    #region DLL Import Define
+{{~ for $field in libOP.functions ~}}
+    [DllImport(DLL_NAME, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    private static extern {{func_switchRtnType $field.rtype}} {{$field.name}}({{func_mergeArgTypeByDefine $field.args}});
+
+{{~ end ~}}
+    #endregion
+}

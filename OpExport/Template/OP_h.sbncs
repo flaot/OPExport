@@ -1,0 +1,24 @@
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+
+#pragma once
+#ifndef LIBOP_EXPORT_H
+#define LIBOP_EXPORT_H
+
+#include "libop.h"
+
+#define DLLAPT extern "C" __declspec(dllexport)
+
+{{~ for $field in libOP.functions ~}}
+{{~
+    $argStrArray = []
+    for $arg in $field.args
+        $argStrArray = $argStrArray | array.add ($arg.type + " " + $arg.name)
+    end
+    $argStr = $argStrArray | array.join ", "
+~}}
+DLLAPT {{$field.rtype}} {{$field.name}}({{$argStr}});
+{{~ end ~}}
+#endif // !LIBOP_EXPORT_H

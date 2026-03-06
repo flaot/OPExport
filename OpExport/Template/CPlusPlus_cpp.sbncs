@@ -1,0 +1,135 @@
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+{{~
+    gDefine = { 
+        Prefix: "OP_", #导出OP函数的前缀名称
+        ObjName: "_op", #插入的对象名称
+        PStr: "_pStr", #插入的字符串指针名称
+        PStrSize: "_nSize", #插入的字符串指针长度名称
+        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+    } 
+~}}
+{{~
+func func_switchType(typeStr)
+    if typeStr == "libop*"
+        ret "void*"
+    else
+        ret typeStr
+    end
+end    
+#生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    if dllFunc.name == gDefine.CreateFunc || dllFunc.name == gDefine.ReleaseFunc 
+        ret dllFunc
+    end
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        if $findArg.type == "long*"
+            $exMethod.rtype = "long";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        if $findArg.type == "std::wstring&"
+            $exMethod.rtype = "std::wstring";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+~}}
+
+#include "libopExport.h"
+
+#undef FindWindow
+#undef FindWindowEx
+#undef SetWindowText
+
+HMODULE libop::_hinst = nullptr;
+
+libop::libop()
+{
+{{~ for $field in libOP.functions ~}}
+    _{{$field.name}} = nullptr;
+{{~ end ~}}
+    {{gDefine.PStr}} = nullptr;
+    {{gDefine.PStrSize}} = 0;
+    {{gDefine.ObjName}} = {{gDefine.CreateFunc}}();
+}
+libop::~libop()
+{
+    {{gDefine.ReleaseFunc}}({{gDefine.ObjName}});
+    {{gDefine.ObjName}} = nullptr;
+    if({{gDefine.PStrSize}} > 0)
+    {
+        free({{gDefine.PStr}});
+        {{gDefine.PStr}} = nullptr;
+        {{gDefine.PStrSize}} = 0;
+    }
+}
+bool libop::LoadDll(const std::wstring &dllPath)
+{
+    _hinst = LoadLibraryW(dllPath.c_str());
+    if (nullptr == _hinst)
+        return false;
+    else
+        return true;
+}
+void libop::UnLoadDll()
+{
+    FreeLibrary(_hinst);
+    _hinst = nullptr;
+}
+{{~ for $field in libOP.functions ~}}
+{{~ $showFunc = func_genFunc $field ~}}
+{{~
+$argStrArray = []
+for $arg in $showFunc.args
+    $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
+end
+$argStr = $argStrArray | array.join ", "
+~}}
+{{~ if $showFunc.rtype == "std::wstring" ~}}
+std::wstring libop::{{$showFunc.name}}({{$argStr}})
+{
+    if(_{{$field.name}} == nullptr)
+        _{{$field.name}} = (p{{$field.name}}Func)GetProcAddress(_hinst, "{{$field.name}}");
+    int _size = _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
+    if (_size > 0)
+    {
+        if ({{gDefine.PStrSize}} > 0) free({{gDefine.PStr}});
+        {{gDefine.PStr}} = (wchar_t *)malloc({{gDefine.PStrSize}} = _size);
+        _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
+    }
+    std::wstring wstr = {{gDefine.PStr}};
+    return wstr;
+}
+{{~ else ~}}
+{{func_switchType $showFunc.rtype}} libop::{{$showFunc.name}}({{$argStr}})
+{
+    if(_{{$field.name}} == nullptr)
+        _{{$field.name}} = (p{{$field.name}}Func)GetProcAddress(_hinst, "{{$field.name}}");
+{{~ if $field.rtype != "void" ~}}
+    return _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
+{{~ else ~}}
+    _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
+{{~ end ~}}
+}
+{{~ end ~}}
+{{~ end ~}}

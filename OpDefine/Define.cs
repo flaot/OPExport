@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace OpExport
+﻿namespace OpDefine
 {
     public interface IParser<T>
     {
@@ -14,9 +11,9 @@ namespace OpExport
         /// <summary> 方法注释 </summary>
         public string annotation;
         /// <summary> 返回类型 </summary>
-        public string returnType;
+        public string rtype;
         /// <summary> 返回类型注释 </summary>
-        public string returnAnnotation;
+        public string rannotation;
         /// <summary> 参数类型及参数名称 </summary>
         public List<Arg> args;
         /// <summary> 方法使用示范 </summary>
@@ -31,7 +28,7 @@ namespace OpExport
         public override string ToString()
         {
             string argTxt = string.Join(", ", args);
-            return string.Format("{0} {1}({2})", returnType, name, argTxt);
+            return string.Format("{0} {1}({2})", rtype, name, argTxt);
         }
     }
     public class Arg : ICloneable
@@ -41,7 +38,7 @@ namespace OpExport
         /// <summary> 参数类型 </summary>
         public string type;
         /// <summary> 传递引用类型 </summary>
-        public Reference refType;
+        public Reference rtype;
         /// <summary> 参数注释 </summary>
         public string annotation;
 
