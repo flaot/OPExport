@@ -69,6 +69,10 @@ _func_methodByFunction [funcName:str]
 # 在参数列表中移除下标为index的
 _func_argsRemoveAt [args:List<Arg>] [index:int]
     ret [void]
+
+# 设置输出文件后缀名
+_func_setOutFileExtension [extension:str]
+    ret [void]
 ```  
 
 ### 输出示例

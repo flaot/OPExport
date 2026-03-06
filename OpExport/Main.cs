@@ -51,12 +51,14 @@ namespace OpExport
             }
 
             //解析模版
+            string fileExtension = string.Empty;
             var templateContext = File.ReadAllText(option.Template);
             var tpl = Template.Parse(templateContext);
             var scriptObject1 = new ScriptObject();
             scriptObject1["libOP"] = libOP;
             scriptObject1.Import("_func_methodByFunction", libOP.MethodByFunction);
             scriptObject1.Import("_func_argsRemoveAt", (List<Arg> a, int index) => a.RemoveAt(index));
+            scriptObject1.Import("_func_setOutFileExtension", (string extension) => fileExtension = extension.StartsWith(".") ? extension : '.' + extension);
 
             //应用模版
             var context = new TemplateContext();
@@ -72,6 +74,8 @@ namespace OpExport
             string folder = Path.GetDirectoryName(outFile);
             if (!Directory.Exists(folder))
                 Directory.CreateDirectory(folder);
+            if (!string.IsNullOrWhiteSpace(fileExtension) && Path.GetExtension(outFile) != fileExtension)
+                outFile += fileExtension;
             Console.WriteLine("[Log] out file:" + outFile);
             File.WriteAllText(outFile, codeContext);
         }
