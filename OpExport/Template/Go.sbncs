@@ -1,0 +1,319 @@
+{{~ _func_setOutFileExtension ".go" ~}}
+/*
+This is an automatically generated file by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE
+*/
+{{~
+    gDefine = {
+        Prefix: "OP_",
+        ObjName: "_op",
+        PStr: "_pStr",
+        PStrSize: "_nSize",
+        CreateFunc: "OP_CreateOP",
+        ReleaseFunc: "OP_ReleaseOP",
+        PackageName: "opsoft",
+    }
+~}}
+{{~
+#将C类型映射为Go用户侧参数类型
+func func_goParamType(varType)
+    case varType
+        when "void"
+            ret ""
+        when "libop*"
+            ret "uintptr"
+        when "void*"
+            ret "uintptr"
+        when "long"
+            ret "int"
+        when "int"
+            ret "int"
+        when "double"
+            ret "float64"
+        when "const wchar_t*"
+            ret "string"
+        when "wchar_t*"
+            ret "string"
+        when "long*"
+            ret "int"
+        when "int*"
+            ret "int"
+        when "size_t"
+            ret "uintptr"
+        when "size_t*"
+            ret "uintptr"
+        else
+            ret "uintptr"
+    end
+end
+#将C类型映射为Go返回类型
+func func_goRetType(varType)
+    case varType
+        when "void"
+            ret ""
+        when "long"
+            ret "int"
+        when "int"
+            ret "int"
+        when "double"
+            ret "float64"
+        when "const wchar_t*"
+            ret "string"
+        when "wchar_t*"
+            ret "string"
+        when "std::wstring"
+            ret "string"
+        when "long*"
+            ret "int"
+        else
+            ret "int"
+    end
+end
+#生成方法定义（处理返回值：long* Ret → long，std::wstring& Ret → std::wstring）
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        if $findArg.type == "long*"
+            $exMethod.rtype = "long";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        if $findArg.type == "std::wstring&"
+            $exMethod.rtype = "std::wstring";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+#将Go关键字参数名重命名为安全名称
+func func_goSafeName(name)
+    if name == "type" || name == "range" || name == "func" || name == "map" || name == "chan" || name == "select" || name == "go" || name == "defer" || name == "fallthrough"
+        ret name + "_"
+    end
+    ret name
+end
+~}}
+package {{gDefine.PackageName}}
+
+import (
+	"math"
+	"syscall"
+	"unsafe"
+)
+
+func _toWideStr(s string) []uint16 {
+	p, _ := syscall.UTF16FromString(s)
+	return p
+}
+
+func _fromWideBuf(buf []uint16) string {
+	return syscall.UTF16ToString(buf)
+}
+
+type OpSoft struct {
+	_lib        *syscall.DLL
+	{{gDefine.ObjName}}         uintptr
+	_fn_release *syscall.Proc
+{{~ for $field in libOP.functions ~}}
+{{~ if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc ~}}
+{{~
+    $tempMethod = (_func_methodByFunction $field.name)
+    $mName = $tempMethod.name
+~}}
+	fn_{{$mName}} *syscall.Proc
+{{~ end ~}}
+{{~ end ~}}
+}
+
+func NewOpSoft(dllFile string) (*OpSoft, error) {
+	lib, err := syscall.LoadDLL(dllFile)
+	if err != nil {
+		return nil, err
+	}
+	createProc, err := lib.FindProc("{{gDefine.CreateFunc}}")
+	if err != nil {
+		lib.Release()
+		return nil, err
+	}
+	op, _, _ := createProc.Call()
+	return &OpSoft{_lib: lib, {{gDefine.ObjName}}: op}, nil
+}
+
+func (o *OpSoft) Release() {
+	if o.{{gDefine.ObjName}} != 0 {
+		if o._fn_release == nil {
+			o._fn_release, _ = o._lib.FindProc("{{gDefine.ReleaseFunc}}")
+		}
+		if o._fn_release != nil {
+			o._fn_release.Call(o.{{gDefine.ObjName}})
+		}
+		o.{{gDefine.ObjName}} = 0
+	}
+	if o._lib != nil {
+		o._lib.Release()
+		o._lib = nil
+	}
+}
+{{~ for $field in libOP.functions ~}}
+{{~
+if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc
+    $showFunc = func_genFunc $field
+
+    #按方向分组参数（只对 long*/int* 类型做输出变量处理）
+    $inArgArray = []
+    $outArgArray = []
+    $inOutArgArray = []
+    for $arg in $showFunc.args
+        if ($arg.rtype == 2) && ($arg.type == "long*" || $arg.type == "int*")
+            $outArgArray = $outArgArray | array.add $arg
+        else if ($arg.rtype == 3) && ($arg.type == "long*" || $arg.type == "int*")
+            $inOutArgArray = $inOutArgArray | array.add $arg
+            $inArgArray = $inArgArray | array.add $arg
+        else
+            $inArgArray = $inArgArray | array.add $arg
+        end
+    end
+
+    #用户可见参数列表（In + InOut）
+    $showArgArray = []
+    for $arg in $inArgArray
+        $showArgArray = $showArgArray | array.add ((func_goSafeName $arg.name) + " " + (func_goParamType $arg.type))
+    end
+    $showArgStr = $showArgArray | array.join ", "
+
+    #主返回类型
+    if $showFunc.rtype == "std::wstring"
+        $retTypeStr = "string"
+    else
+        $retTypeStr = func_goRetType $showFunc.rtype
+    end
+
+    #构建完整返回签名（Out参数 + InOut参数 + 主返回值）
+    $retArray = []
+    for $arg in $outArgArray
+        $retArray = $retArray | array.add "int"
+    end
+    for $arg in $inOutArgArray
+        $retArray = $retArray | array.add "int"
+    end
+    if $retTypeStr != ""
+        $retArray = $retArray | array.add $retTypeStr
+    end
+    if ($retArray | array.size) == 0
+        $retPart = ""
+    else if ($retArray | array.size) == 1
+        $retPart = " " + ($retArray | array.first)
+    else
+        $retPart = " (" + ($retArray | array.join ", ") + ")"
+    end
+
+    #DLL调用参数列表
+    $callArgArray = []
+    for $arg in $field.args
+        if $arg.name == gDefine.ObjName
+            $callArgArray = $callArgArray | array.add ("o." + gDefine.ObjName)
+        else if $arg.name == gDefine.PStr
+            $callArgArray = $callArgArray | array.add "_pStr"
+        else if $arg.name == gDefine.PStrSize
+            $callArgArray = $callArgArray | array.add "_nSize"
+        else if ($arg.rtype == 2) && ($arg.type == "long*" || $arg.type == "int*")
+            $callArgArray = $callArgArray | array.add ("uintptr(unsafe.Pointer(&_out_" + $arg.name + "))")
+        else if ($arg.rtype == 3) && ($arg.type == "long*" || $arg.type == "int*")
+            $callArgArray = $callArgArray | array.add ("uintptr(unsafe.Pointer(&_io_" + (func_goSafeName $arg.name) + "))")
+        else if $arg.type == "const wchar_t*" || $arg.type == "wchar_t*"
+            $callArgArray = $callArgArray | array.add ("uintptr(unsafe.Pointer(&_ws_" + (func_goSafeName $arg.name) + "[0]))")
+        else if $arg.type == "double"
+            $callArgArray = $callArgArray | array.add ("uintptr(math.Float64bits(" + (func_goSafeName $arg.name) + "))")
+        else
+            $callArgArray = $callArgArray | array.add ("uintptr(" + (func_goSafeName $arg.name) + ")")
+        end
+    end
+    $callArgStr = $callArgArray | array.join ", "
+    $mName = $showFunc.name
+    $hasOutArgs = (($outArgArray | array.size) + ($inOutArgArray | array.size)) > 0
+    $retValArray = []
+    for $arg in $outArgArray
+        $retValArray = $retValArray | array.add ("int(_out_" + $arg.name + ")")
+    end
+    for $arg in $inOutArgArray
+        $retValArray = $retValArray | array.add ("int(_io_" + (func_goSafeName $arg.name) + ")")
+    end
+    $retValStr = $retValArray | array.join ", "
+~}}
+{{~ if !($showFunc.annotation | string.empty) ~}}
+// {{$showFunc.annotation | string.replace "\n" " "}}
+{{~ end ~}}
+{{~ for $a in $showFunc.args ~}}
+{{~ if !($a.annotation | string.empty) ~}}
+// {{$a.name}}: {{$a.annotation | string.replace "\n" " "}}
+{{~ end ~}}
+{{~ end ~}}
+{{~ if !($showFunc.rannotation | string.empty) ~}}
+// Returns: {{$showFunc.rannotation | string.replace "\n" " "}}
+{{~ end ~}}
+func (o *OpSoft) {{$mName}}({{$showArgStr}}){{$retPart}} {
+{{~ for $arg in $inArgArray ~}}
+{{~ if $arg.type == "const wchar_t*" || $arg.type == "wchar_t*" ~}}
+{{~ $safeName = func_goSafeName $arg.name ~}}
+	_ws_{{$safeName}} := _toWideStr({{$safeName}})
+{{~ end ~}}
+{{~ end ~}}
+{{~ for $arg in $outArgArray ~}}
+	var _out_{{$arg.name}} int32
+{{~ end ~}}
+{{~ for $arg in $inOutArgArray ~}}
+{{~ $safeName = func_goSafeName $arg.name ~}}
+	_io_{{$safeName}} := int32({{$safeName}})
+{{~ end ~}}
+	if o.fn_{{$mName}} == nil {
+		o.fn_{{$mName}}, _ = o._lib.FindProc("{{$field.name}}")
+	}
+{{~ if $showFunc.rtype == "std::wstring" ~}}
+	var _pStr uintptr
+	var _nSize uintptr
+	_size, _, _ := o.fn_{{$mName}}.Call({{$callArgStr}})
+	if _size > 0 {
+		buf := make([]uint16, _size/2+1)
+		_pStr = uintptr(unsafe.Pointer(&buf[0]))
+		_nSize = _size
+		o.fn_{{$mName}}.Call({{$callArgStr}})
+		return _fromWideBuf(buf)
+	}
+	return ""
+{{~ else if $hasOutArgs ~}}
+{{~ if $retTypeStr == "" ~}}
+	o.fn_{{$mName}}.Call({{$callArgStr}})
+	return {{$retValStr}}
+{{~ else if $retTypeStr == "float64" ~}}
+	r, _, _ := o.fn_{{$mName}}.Call({{$callArgStr}})
+	return {{$retValStr}}, math.Float64frombits(uint64(r))
+{{~ else ~}}
+	r, _, _ := o.fn_{{$mName}}.Call({{$callArgStr}})
+	return {{$retValStr}}, {{$retTypeStr}}(r)
+{{~ end ~}}
+{{~ else if $retTypeStr == "" ~}}
+	o.fn_{{$mName}}.Call({{$callArgStr}})
+{{~ else if $retTypeStr == "float64" ~}}
+	r, _, _ := o.fn_{{$mName}}.Call({{$callArgStr}})
+	return math.Float64frombits(uint64(r))
+{{~ else ~}}
+	r, _, _ := o.fn_{{$mName}}.Call({{$callArgStr}})
+	return {{$retTypeStr}}(r)
+{{~ end ~}}
+}
+{{~ end ~}}
+{{~ end ~}}

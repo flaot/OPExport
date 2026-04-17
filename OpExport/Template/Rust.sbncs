@@ -1,0 +1,284 @@
+{{~ _func_setOutFileExtension ".rs" ~}}
+/*
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE
+
+Cargo.toml dependency: libloading = "0.8"
+*/
+{{~
+    gDefine = { 
+        Prefix: "OP_", #导出OP函数的前缀名称
+        ObjName: "_op", #插入的对象名称
+        PStr: "_pStr", #插入的字符串指针名称
+        PStrSize: "_nSize", #插入的字符串指针长度名称
+        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+    } 
+~}}
+{{~
+#将C类型映射为Rust FFI类型（用于 extern "C" fn 签名）
+func func_rustFfiType(varType)
+    case varType
+        when "void"
+            ret "()"
+        when "void*"
+            ret "*mut std::os::raw::c_void"
+        when "libop*"
+            ret "*mut std::os::raw::c_void"
+        when "long"
+            ret "i32"
+        when "long*"
+            ret "*mut i32"
+        when "int"
+            ret "i32"
+        when "int*"
+            ret "*mut i32"
+        when "wchar_t*"
+            ret "*mut u16"
+        when "const wchar_t*"
+            ret "*const u16"
+        when "double"
+            ret "f64"
+        when "size_t"
+            ret "usize"
+        when "size_t*"
+            ret "*mut usize"
+        else
+            ret varType
+    end
+end
+#将C类型映射为用户侧Rust类型（方法签名对外暴露的类型）
+func func_rustUserType(varType)
+    case varType
+        when "void"
+            ret "()"
+        when "long"
+            ret "i32"
+        when "int"
+            ret "i32"
+        when "double"
+            ret "f64"
+        when "const wchar_t*"
+            ret "&str"
+        when "wchar_t*"
+            ret "*mut u16"
+        when "long*"
+            ret "*mut i32"
+        when "int*"
+            ret "*mut i32"
+        when "size_t"
+            ret "usize"
+        when "size_t*"
+            ret "*mut usize"
+        when "void*"
+            ret "*mut std::os::raw::c_void"
+        when "libop*"
+            ret "*mut std::os::raw::c_void"
+        else
+            ret varType
+    end
+end
+#将Rust保留关键字转为安全标识符（追加下划线）
+func func_rustSafeIdent(name)
+    $reserved = ["as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return", "self", "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where", "while", "async", "await", "dyn"]
+    if $reserved | array.contains name
+        ret name + "_"
+    end
+    ret name
+end
+#生成方法定义（处理返回值：long* Ret → long，std::wstring& Ret → std::wstring）
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        if $findArg.type == "long*"
+            $exMethod.rtype = "long";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        if $findArg.type == "std::wstring&"
+            $exMethod.rtype = "std::wstring";
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+~}}
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+#![allow(dead_code)]
+use libloading::Library;
+use std::os::raw::c_void;
+
+fn _to_wide_str(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+unsafe fn _from_wide_buf(buf: &[u16]) -> String {
+    let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+    String::from_utf16_lossy(&buf[..end])
+}
+
+{{~ for $field in libOP.functions ~}}
+{{~
+$ffiArgArray = []
+for $arg in $field.args
+    $ffiArgArray = $ffiArgArray | array.add (func_rustFfiType $arg.type)
+end
+$ffiArgStr = $ffiArgArray | array.join ", "
+$ffiRetStr = func_rustFfiType $field.rtype
+~}}
+type Fn_{{$field.name}} = unsafe extern "C" fn({{$ffiArgStr}}) -> {{$ffiRetStr}};
+{{~ end ~}}
+
+pub struct OpSoft {
+    _lib: Library,
+    _op: *mut c_void,
+    _fn_release: Option<Fn_{{gDefine.ReleaseFunc}}>,
+{{~ for $field in libOP.functions ~}}
+{{~ if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc ~}}
+{{~
+    $tempMethod = (_func_methodByFunction $field.name)
+    $mName = $tempMethod.name
+~}}
+    fn_{{$mName}}: Option<Fn_{{$field.name}}>,
+{{~ end ~}}
+{{~ end ~}}
+}
+
+#[allow(non_snake_case)]
+impl OpSoft {
+    pub fn new(dll_file: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        unsafe {
+            let lib = Library::new(dll_file)?;
+            let _op = (*lib.get::<Fn_{{gDefine.CreateFunc}}>(b"{{gDefine.CreateFunc}}")?)();
+            Ok(Self {
+                _op,
+                _fn_release: None,
+{{~ for $field in libOP.functions ~}}
+{{~ if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc ~}}
+{{~
+    $tempMethod = (_func_methodByFunction $field.name)
+    $mName = $tempMethod.name
+~}}
+                fn_{{$mName}}: None,
+{{~ end ~}}
+{{~ end ~}}
+                _lib: lib,
+            })
+        }
+    }
+{{~ for $field in libOP.functions ~}}
+{{~
+if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc
+    $showFunc = func_genFunc $field
+
+    #用户可见参数列表
+    $showArgArray = []
+    for $arg in $showFunc.args
+        $showArgArray = $showArgArray | array.add ((func_rustSafeIdent $arg.name) + ": " + (func_rustUserType $arg.type))
+    end
+    $showArgStr = $showArgArray | array.join ", "
+    if ($showArgStr | string.size) > 0
+        $showArgStr = ", " + $showArgStr
+    end
+
+    #返回类型
+    if $showFunc.rtype == "std::wstring"
+        $retTypeStr = "String"
+    else
+        $retTypeStr = func_rustUserType $showFunc.rtype
+    end
+
+    #DLL调用参数列表
+    $callArgArray = []
+    for $arg in $field.args
+        if $arg.name == gDefine.ObjName
+            $callArgArray = $callArgArray | array.add "self._op"
+        else if $arg.name == gDefine.PStr
+            $callArgArray = $callArgArray | array.add "_pStr"
+        else if $arg.name == gDefine.PStrSize
+            $callArgArray = $callArgArray | array.add "_nSize"
+        else if $arg.type == "const wchar_t*"
+            $callArgArray = $callArgArray | array.add ("_ws_" + $arg.name + ".as_ptr()")
+        else
+            $callArgArray = $callArgArray | array.add (func_rustSafeIdent $arg.name)
+        end
+    end
+    $callArgStr = $callArgArray | array.join ", "
+~}}
+{{~ if !($showFunc.annotation | string.empty) ~}}
+    /// {{$showFunc.annotation | string.replace "\n" " "}}
+{{~ end ~}}
+{{~ for $a in $showFunc.args ~}}
+{{~ if !($a.annotation | string.empty) ~}}
+    /// * `{{$a.name}}` - {{$a.annotation | string.replace "\n" " "}}
+{{~ end ~}}
+{{~ end ~}}
+{{~ if !($showFunc.rannotation | string.empty) ~}}
+    /// Returns: {{$showFunc.rannotation | string.replace "\n" " "}}
+{{~ end ~}}
+    pub fn {{$showFunc.name}}(&mut self{{$showArgStr}}) -> {{$retTypeStr}} {
+{{~ for $arg in $showFunc.args ~}}
+{{~ if $arg.type == "const wchar_t*" ~}}
+        let _ws_{{$arg.name}} = _to_wide_str({{func_rustSafeIdent $arg.name}});
+{{~ end ~}}
+{{~ end ~}}
+{{~ if $showFunc.rtype == "std::wstring" ~}}
+        let mut _pStr: *mut u16 = std::ptr::null_mut();
+        let mut _nSize: i32 = 0;
+        unsafe {
+            if self.fn_{{$showFunc.name}}.is_none() {
+                self.fn_{{$showFunc.name}} = Some(*self._lib.get(b"{{$field.name}}").unwrap());
+            }
+            let func = self.fn_{{$showFunc.name}}.unwrap();
+            let _size = func({{$callArgStr}});
+            if _size > 0 {
+                let mut buf = vec![0u16; (_size / 2) as usize];
+                _pStr = buf.as_mut_ptr();
+                _nSize = _size;
+                func({{$callArgStr}});
+                return _from_wide_buf(&buf);
+            }
+        }
+        String::new()
+{{~ else ~}}
+        unsafe {
+            if self.fn_{{$showFunc.name}}.is_none() {
+                self.fn_{{$showFunc.name}} = Some(*self._lib.get(b"{{$field.name}}").unwrap());
+            }
+            (self.fn_{{$showFunc.name}}.unwrap())({{$callArgStr}})
+        }
+{{~ end ~}}
+    }
+{{~ end ~}}
+{{~ end ~}}
+}
+
+impl Drop for OpSoft {
+    fn drop(&mut self) {
+        unsafe {
+            if self._fn_release.is_none() {
+                if let Ok(f) = self._lib.get::<Fn_{{gDefine.ReleaseFunc}}>(b"{{gDefine.ReleaseFunc}}") {
+                    self._fn_release = Some(*f);
+                }
+            }
+            if let Some(f) = self._fn_release {
+                f(self._op);
+            }
+        }
+    }
+}
