@@ -37,7 +37,7 @@ namespace OpExport
                 Console.WriteLine("[Error] no found template file:" + option.Template);
                 return;
             }
-            if(string.IsNullOrWhiteSpace(option.OutFile))
+            if (string.IsNullOrWhiteSpace(option.OutFile))
             {
                 Console.WriteLine("[Error] out file is null");
                 return;
@@ -58,7 +58,7 @@ namespace OpExport
             scriptObject1["libOP"] = libOP;
             scriptObject1.Import("_func_methodByFunction", libOP.MethodByFunction);
             scriptObject1.Import("_func_argsRemoveAt", (List<Arg> a, int index) => a.RemoveAt(index));
-            scriptObject1.Import("_func_setOutFileExtension", (string extension) => fileExtension = extension.StartsWith(".") ? extension : '.' + extension);
+            scriptObject1.Import("_func_setOutFileExtension", (string extension) => { fileExtension = extension.StartsWith(".") ? extension : '.' + extension; });
 
             //应用模版
             var context = new TemplateContext();

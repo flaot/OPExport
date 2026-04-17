@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -19,7 +19,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommandLine.Net" Version="2.3.0" />
-    <PackageReference Include="Scriban" Version="6.5.3" />
+    <PackageReference Include="Scriban" Version="7.1.0" />
   </ItemGroup>
 
   <ItemGroup>
