@@ -46,7 +46,7 @@ func func_genFunc(dllFunc)
     ret $exMethod
 end
 ~}}
-#include "libopExport.h"
+#include "OP.h"
 
 libop* {{gDefine.CreateFunc}}()
 {
