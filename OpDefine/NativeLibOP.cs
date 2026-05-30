@@ -50,6 +50,8 @@
                 else
                 {
                     methodTxt.Add(line);
+                    if (!line.Contains(')'))
+                        continue;
                     Method method = ParseMethod(methodTxt);
                     if (method != null)
                         _methods.Add(method);
@@ -74,6 +76,12 @@
             string methodDefine = methodTxt[methodTxt.Count - 1];
             methodTxt.RemoveAt(methodTxt.Count - 1);
             int methonStartIndex = methodDefine.IndexOf('(');
+            while (methonStartIndex < 0)
+            {
+                methodDefine = methodTxt[methodTxt.Count - 1] + methodDefine;
+                methodTxt.RemoveAt(methodTxt.Count - 1);
+                methonStartIndex = methodDefine.IndexOf('(');
+            }
 
             //没有返回值的构造函数等
             int returnTypeSplitIndex = methodDefine.LastIndexOf(' ', methonStartIndex);
@@ -114,6 +122,11 @@
                 {
                     arg.name = arg.name.Substring(1);
                     arg.type += '*';
+                }
+                else if (argTxt[splitIndex + 1] == '&')
+                {
+                    arg.name = arg.name.Substring(1);
+                    arg.type += '&';
                 }
             }
             return method;
