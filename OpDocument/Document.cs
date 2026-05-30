@@ -130,12 +130,19 @@ namespace OpDocument
                 }
                 index = 0;
                 Annotation annotation = new Annotation();
+                string bodyBlock = "<h3 class=\"heading-element\">";
                 functionDefine = SubBlockString(contextText, href, "<h3", ref index); //方法的说明块
-                if (index < 0)
+                if(index > 0)
+                {
+                    var startIndex_ = index;
+                    startIndex_ = contextText.LastIndexOf(bodyBlock, startIndex_);
+                    functionDefine = contextText.Substring(startIndex_, index - startIndex_);
+                }
+                else if (index < 0)
                     functionDefine = contextText.Substring(contextText.IndexOf(href));
 
                 index = 0;
-                annotation.funcName = SubBlockString(functionDefine, "</a>", "</h3>", ref index); index = 0;
+                annotation.funcName = SubBlockString(functionDefine, bodyBlock, "</h3>", ref index); index = 0;
                 annotation.funcAnnotation = SubBlockString(functionDefine, "<p>", "</p>", ref index); index = 0;
                 annotation.example = string.Empty;
                 annotation.returnAnnotation = string.Empty;
