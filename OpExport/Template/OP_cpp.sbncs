@@ -11,6 +11,7 @@ License：https://github.com/WallBreaker2/op/blob/master/LICENSE
         PStrSize: "_nSize", #插入的字符串指针长度名称
         CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
         ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+        RTypeArray: ["long*", "std::wstring&", "LONG_PTR*", "float*", "double*", "int64_t*"], #返回类型
     } 
 ~}}
 
@@ -26,16 +27,12 @@ func func_genFunc(dllFunc)
         end
     end
     if $findArg != null
-        if $findArg.type == "long*"
-            $exMethod.rtype = "long";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
-            end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        $retType = $findArg.type
+        if (gDefine.RTypeArray | array.contains $findArg.type)
+            $retType = $retType | string.slice 0 (($retType | string.size) - 1)
         end
-        if $findArg.type == "std::wstring&"
-            $exMethod.rtype = "std::wstring";
+        if $retType != $findArg.type
+            $exMethod.rtype = $retType;
             if !($findArg.annotation | string.empty)
                 $exMethod.annotation = $findArg.annotation;
             end
@@ -90,7 +87,7 @@ $argNameStr = $argNameStrArray | array.join ", "
         return (int)({{$lastArg.name}}.length() + 1) * sizeof(wchar_t);
     wcscpy_s({{gDefine.PStr}}, {{gDefine.PStrSize}} / sizeof(wchar_t), {{$lastArg.name}}.c_str());
     return 0;
-{{~ else if $oMethod.rtype != "long" && $showFunc.rtype == "long" ~}}
+{{~ else if $showFunc.rtype != "std::wstring&" && !(gDefine.RTypeArray | array.contains ($oMethod.rtype + "*")) && (gDefine.RTypeArray | array.contains ($showFunc.rtype + "*")) ~}}
 {{~ 
     $lastArg = $oMethod.args | array.last 
     $tempArray = $argNameStrArray
@@ -98,7 +95,7 @@ $argNameStr = $argNameStrArray | array.join ", "
     $tempArray = $tempArray | array.remove_at ($size - 1)
     $tempArray = $tempArray | array.add ("&" + $lastArg.name)
 ~}}
-    long {{$lastArg.name}};
+    {{$showFunc.rtype}} {{$lastArg.name}};
     {{gDefine.ObjName}}->{{$oMethod.name}}({{$tempArray | array.join ", "}});
     return {{$lastArg.name}};
 {{~ else ~}}

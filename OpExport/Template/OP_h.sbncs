@@ -10,6 +10,8 @@ License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 
 #include "libop.h"
 
+using libop = op::Client;
+
 #define DLLAPT extern "C" __declspec(dllexport)
 
 {{~ for $field in libOP.functions ~}}

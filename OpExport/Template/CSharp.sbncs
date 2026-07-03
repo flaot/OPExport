@@ -41,6 +41,20 @@ func func_switchType(varType)
             ret "IntPtr"
         when "std::wstring" 
             ret "string"
+        when "LONG_PTR" 
+            ret "IntPtr"
+        when "unsigned long" 
+            ret "uint"
+        when "unsigned long*" 
+            ret "IntPtr"
+        when "float*" 
+            ret "IntPtr"
+        when "double*" 
+            ret "IntPtr"
+        when "int64_t" 
+            ret "long"
+        when "int64_t*" 
+            ret "IntPtr"
         else 
             ret varType
     end
@@ -66,6 +80,14 @@ func func_switchArgType(varType, refType)
             ret $result + "string"
         when "size_t*" 
             ret $result + "IntPtr"
+        when "unsigned long*" 
+            ret $result + "uint"
+        when "float*" 
+            ret $result + "float"
+        when "double*" 
+            ret $result + "double"
+        when "int64_t*" 
+            ret $result + "long"
         else 
             ret $type
     end
@@ -73,6 +95,27 @@ end
 #转换返回类型
 func func_switchRtnType(varType)
     ret (func_switchArgType varType 4)
+end
+#更改方法签名，将参数中的返回值改为返回值的类型判断
+func func_switchRtnTypeCheck(varType)
+    case varType
+      when "long*" 
+          ret "long"
+      when "std::wstring&" 
+          ret "std::wstring"
+      when "LONG_PTR*" 
+          ret "IntPtr"
+      when "float*" 
+          ret "float"
+      when "float*" 
+          ret "float"
+      when "double*" 
+          ret "double"
+      when "int64_t*" 
+          ret "int64_t"
+      else 
+          ret varType
+    end
 end
 #组合定义类型
 func func_mergeArgTypeByDefine(argArray)
@@ -94,16 +137,9 @@ func func_genFunc(dllFunc)
         end
     end
     if $findArg != null
-        if $findArg.type == "long*"
-            $exMethod.rtype = "long";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
-            end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
-        end
-        if $findArg.type == "std::wstring&"
-            $exMethod.rtype = "std::wstring";
+        $retType = (func_switchRtnTypeCheck $findArg.type)
+        if $retType != $findArg.type
+            $exMethod.rtype = $retType;
             if !($findArg.annotation | string.empty)
                 $exMethod.annotation = $findArg.annotation;
             end
