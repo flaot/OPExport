@@ -2,6 +2,11 @@ Overview
 ===========
 OPExport([OP](https://github.com/WallBreaker2/op) & Export)是一个OP的自定义模版代码生成.
 
+## 支持范围
+- 明确支持[op-0.4.0.0](https://github.com/WallBreaker2/op/releases/tag/0.4.0.0)~[op-0.4.8.0](https://github.com/WallBreaker2/op/releases/tag/0.4.8.0)
+- 其他版本只要是libop.h + op.idl 组合的应该都能支持(需微改源码)
+- 高于0.4.8.0推荐使用主分支 只解析libop.h方案
+
 ## 功能特色
 - 源代码使用c#编写可跨平台
 - 根据libop.h及自定义模版生成代码
