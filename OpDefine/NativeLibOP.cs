@@ -18,9 +18,15 @@
         {
             _methods = new List<Method>();
             string[] lines = File.ReadAllLines(OPHeadfile);
+            //找到起始行
+            int startLine = 0;
+            {
+                var findIndex = Array.FindIndex(lines, item => item.Contains("Ver();"));
+                startLine = Array.FindLastIndex(lines, findIndex, item => item.Contains("public:"));
+            }
             bool start = false;
             List<string> methodTxt = new List<string>(10);
-            for (int i = 0; i < lines.Length; i++)
+            for (int i = startLine; i < lines.Length; i++)
             {
                 string line = lines[i].Trim();
                 if (string.IsNullOrEmpty(line))
@@ -28,6 +34,8 @@
                 if (line == "};")
                     continue;
                 if (line.Contains("-------------"))
+                    continue;
+                if (line.Contains("#pragma"))
                     continue;
                 //判定对外开放的方法
                 int permission = ParsePermission(line);

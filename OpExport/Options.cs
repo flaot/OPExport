@@ -21,7 +21,8 @@ namespace OpExport
         public bool Document { get; set; }
 
         public string IdlOPFile => Path.Combine(Project, "libop/com/op.idl");
-        public string LibOPFile => Path.Combine(Project, "libop/libop.h");
+        public string LibOPFile => File.Exists(Path.Combine(Project, "libop/libop.h")) ? 
+            Path.Combine(Project, "libop/libop.h") : Path.Combine(Project, "include/libop.h"); //兼容0.4.8.0
 
 
         private static Options optionsInstance;

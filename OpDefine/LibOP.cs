@@ -20,6 +20,9 @@
         /// <summary> op.h定义的成员函数 </summary>
         private List<Method> _methods;
 
+        /// <summary> 支持的基本返回类型(扩展) </summary>
+        private string[] _retBaseTypes = new string[] { "long", "LONG_PTR", "float", "double", "int64_t" };
+
         /// <summary>
         /// 根据函数名称查找该函数在DLL中的方法定义
         /// </summary>
@@ -140,14 +143,6 @@
             if (findArg == null)
                 return;
 
-            if (findArg.type == "long*")
-            {
-                function.rtype = "long";
-                if (!string.IsNullOrEmpty(findArg.annotation))
-                    function.rannotation = findArg.annotation;
-                function.args.Remove(findArg);
-                return;
-            }
             if (findArg.type == "std::wstring&")
             {
                 function.rtype = "int";
@@ -157,6 +152,18 @@
                 function.args.Add(new Arg() { type = "wchar_t*", name = PStr, annotation = string.Empty });
                 function.args.Add(new Arg() { type = "int", name = PStrSize, annotation = string.Empty });
                 return;
+            }
+            for (var i = 0; i < _retBaseTypes.Length; i++)
+            {
+                var typeStr = _retBaseTypes[i];
+                if (findArg.type == $"{typeStr}*")
+                {
+                    function.rtype = typeStr;
+                    if (!string.IsNullOrEmpty(findArg.annotation))
+                        function.rannotation = findArg.annotation;
+                    function.args.Remove(findArg);
+                    return;
+                }
             }
             Console.WriteLine("[Error] 未处理的返回类型:" + function.ToString());
         }
@@ -201,6 +208,13 @@
 
             //step.2 自动识别未定义的引用类型
             libOP.FullReference();
+
+            //暂时屏蔽参数中带std::wstring&的 待方案确定再支持
+            for (int i = libOP._methods.Count - 1; i >= 0; i--)
+            {
+                if (libOP._methods[i].args.Exists(item => item.type == "std::wstring&" && item.rtype != Reference.Ret))
+                    libOP._methods.RemoveAt(i);
+            }
 
             //step.3 根据方法定义填充C函数定义方式的函数
             libOP.FullFunciton();
