@@ -16,18 +16,12 @@ namespace OpExport
             Options option = Options.Inst;
             if (option == null) return;
 
-            Console.WriteLine("OP Project:" + option.Project);
-            if (!Directory.Exists(option.Project))
-            {
-                Console.WriteLine("[Error] no found OP Project:" + option.Project);
-                return;
-            }
             if (!File.Exists(option.LibOPFile))
             {
                 Console.WriteLine("[Error] no found libop.h file:" + option.LibOPFile);
                 return;
             }
-            if (!File.Exists(option.IdlOPFile))
+            if (!string.IsNullOrEmpty(option.IdlOPFile) && !File.Exists(option.IdlOPFile))
             {
                 Console.WriteLine("[Error] no found op.idl file:" + option.IdlOPFile);
                 return;
@@ -44,9 +38,17 @@ namespace OpExport
             }
 
             LibOP libOP = LibOP.Create(option.LibOPFile, option.IdlOPFile, option.Document);
+            if (libOP == null)
+            {
+                Console.Write("[Error] pause op funtion define incomplete.");
+                if (string.IsNullOrEmpty(option.IdlOPFile))
+                    Console.Write("try import op.idl file.");
+                Console.WriteLine();
+                return;
+            }
             if (libOP.functions.Count < 1)
             {
-                Console.WriteLine("[Error] not is op project:" + option.Project);
+                Console.WriteLine("[Error] not is op project.");
                 return;
             }
 

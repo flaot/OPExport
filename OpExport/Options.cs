@@ -7,9 +7,11 @@ namespace OpExport
 {
     public class Options
     {
+        [RequiredArgument(0, "op", "libop.h File")]
+        public string LibOPFile { get; set; }
 
-        [RequiredArgument(0, "op", "OP Project")]
-        public string Project { get; set; }
+        [OptionalArgument("", "idl", "op.idl File")]
+        public string IdlOPFile { get; set; }
 
         [OptionalArgument("", "t", "Tempalte File")]
         public string Template { get; set; }
@@ -19,10 +21,6 @@ namespace OpExport
 
         [OptionalArgument(false, "doc", "Apply github document by OP")]
         public bool Document { get; set; }
-
-        public string IdlOPFile => Path.Combine(Project, "libop/com/op.idl");
-        public string LibOPFile => File.Exists(Path.Combine(Project, "libop/libop.h")) ? 
-            Path.Combine(Project, "libop/libop.h") : Path.Combine(Project, "include/libop.h"); //兼容0.4.8.0
 
 
         private static Options optionsInstance;

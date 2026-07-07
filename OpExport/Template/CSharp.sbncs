@@ -55,6 +55,8 @@ func func_switchType(varType)
             ret "long"
         when "int64_t*" 
             ret "IntPtr"
+        when "const void*" 
+            ret "IntPtr"
         else 
             ret varType
     end
@@ -121,7 +123,7 @@ end
 func func_mergeArgTypeByDefine(argArray)
     $argStrArray = []
     for $arg in argArray
-        $temp = (func_switchArgType $arg.type $arg.rtype) + " " + $arg.name
+        $temp = (func_switchArgType $arg.type $arg.rtype) + " " + (func_safeName $arg.name)
         $argStrArray = $argStrArray | array.add $temp
     end
     ret ($argStrArray | array.join ", ")
@@ -148,6 +150,13 @@ func func_genFunc(dllFunc)
         end
     end
     ret $exMethod
+end
+#将关键字参数名重命名为安全名称
+func func_safeName(name)
+    if name == "lock"
+        ret name + "_"
+    end
+    ret name
 end
 ~}}
 
@@ -236,7 +245,7 @@ public partial class OpSoft: IDisposable, IComparable<OpSoft>
 $argStrArray = []
  for $a in $showFunc.args
      $a.type = func_switchArgType $a.type $a.rtype
-     $temp = $a.type + " " + $a.name
+     $temp = $a.type + " " + (func_safeName $a.name)
      $argStrArray = $argStrArray | array.add $temp
  end 
 $showArgs = ($argStrArray | array.join ", ")
@@ -245,20 +254,20 @@ $callNames = []
 for $arg in $field.args
     $findItem = null
     for $showArg in $showFunc.args
-        if $showArg.name == $arg.name
+        if $showArg.name == (func_safeName $arg.name)
             $findItem = $showArg
             break
         end
     end
     if $findItem == null
-        $callNames = $callNames | array.add $arg.name
+        $callNames = $callNames | array.add (func_safeName $arg.name)
     else
         if $findItem.type | string.starts_with "ref "
-            $callNames = $callNames | array.add ("ref " + $arg.name)
+            $callNames = $callNames | array.add ("ref " + (func_safeName $arg.name))
         else if $findItem.type | string.starts_with "out "
-            $callNames = $callNames | array.add ("out " + $arg.name)
+            $callNames = $callNames | array.add ("out " + (func_safeName $arg.name))
         else
-            $callNames = $callNames | array.add $arg.name
+            $callNames = $callNames | array.add (func_safeName $arg.name)
         end
     end
 

@@ -98,7 +98,7 @@
                 method.args.Add(arg);
 
                 //Fix:可能未按指针标准写法走，比如：int* a; 写成int *a;
-                if (argTxt[splitIndex + 1] == '*')
+                if (arg.name[0] == '*')
                 {
                     arg.name = arg.name.Substring(1);
                     arg.type += '*';
@@ -110,6 +110,7 @@
         {
             bool start = false;
             int findIndex = -1;
+            int bracketStack = 0;
             while (findIndex < 0 && startIndex < methodDefine.Length)
             {
                 var ch = methodDefine[startIndex];
@@ -117,8 +118,12 @@
                     start = true;
                 if (ch == ']')
                     start = false;
-                if (!start && (ch == ',' || ch == ')'))
+                if (ch == '(')
+                    ++bracketStack;
+                if (!start && bracketStack == 0 && (ch == ',' || ch == ')'))
                     findIndex = startIndex;
+                if (ch == ')')
+                    --bracketStack;
                 ++startIndex;
             }
             return findIndex;

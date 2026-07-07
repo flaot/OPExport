@@ -36,13 +36,34 @@
             return (Method)_methods.Find(item => item.name == methodName).Clone();
         }
 
-        /// <summary> 读取libop.h文件及com定义文件 </summary>
-        private void FullOPLibOP(string libopFile, string idlFile)
+        /// <summary>
+        /// 解析op函数定义
+        /// </summary>
+        /// <param name="libopFile">libop.h文件路径</param>
+        /// <param name="idlFile">com定义文件(idl)路径, 额外补充参数引用类型</param>
+        /// <returns>成功返回true；反之为false</returns>
+        private bool FullOPLibOP(string libopFile, string idlFile)
         {
-            //按个数填充
-            var idl = NativeIdl.Parse(idlFile);
+            //解析'libop.h'文件
             var nativeLibOPMethods = NativeLibOP.Parse(libopFile);
-            foreach (var naMethod in nativeLibOPMethods)
+            //解析'op.idl'文件补充参数 in out 说明
+            FullReferenceByIDLFile(nativeLibOPMethods, idlFile);
+            //识别返回值类型
+            FullReferenceByRet(nativeLibOPMethods);
+            //自动识别未定义的引用类型
+            FullReferenceByAuto(nativeLibOPMethods);
+            //检查是否还有未知引用类型
+            if (IsUnknownReference(nativeLibOPMethods))
+                return false;
+            _methods = nativeLibOPMethods;
+            return true;
+        }
+        private static void FullReferenceByIDLFile(List<Method> methods, string idlFile)
+        {
+            if (string.IsNullOrEmpty(idlFile))
+                return;
+            var idl = NativeIdl.Parse(idlFile);
+            foreach (var naMethod in methods)
             {
                 var findIdl = idl.Find(item => item.name.Equals(naMethod.name, StringComparison.OrdinalIgnoreCase));
                 if (findIdl == null)
@@ -50,7 +71,6 @@
                     Console.WriteLine("[Waring] 未定义在文件'op.idl'中:" + naMethod.ToString());
                     continue;
                 }
-
                 if (naMethod.args.Count != findIdl.args.Count)
                 {
                     Console.WriteLine("[Waring] 参数与文件'op.idl'不匹配:" + naMethod.ToString());
@@ -58,29 +78,59 @@
                 }
                 for (int i = 0; i < naMethod.args.Count; i++)
                 {
-                    naMethod.args[i].rtype = findIdl.args[i].rtype;
+                    if (naMethod.args[i].rtype == Reference.None)
+                        naMethod.args[i].rtype = findIdl.args[i].rtype;
                 }
             }
-            _methods = nativeLibOPMethods;
         }
-        /// <summary> 确定传递的引用类型 </summary>
-        private void FullReference()
+        private static void FullReferenceByRet(List<Method> methods)
         {
-            if (_methods == null) return;
-            foreach (var method in _methods)
+            string[] retStrs = new string[] { "ret", "retstr", "bret", "retjson", "ret_str", "rettitle" };
+            foreach (var method in methods)
             {
-                foreach (var arg in method.args)
+                for (int i = 0; i < method.args.Count; i++)
                 {
+                    var arg = method.args[i];
+                    if(Array.Exists(retStrs, arg.name.Equals))
+                        arg.rtype = Reference.Ret;
+                }
+            }
+        }
+        private static void FullReferenceByAuto(List<Method> methods)
+        {
+            foreach (var method in methods)
+            {
+                for (int i = 0; i < method.args.Count; i++)
+                {
+                    var arg = method.args[i];
                     if (arg.rtype != Reference.None)
                         continue;
-                    if (arg.name == "ret" || arg.name == "retstr")
-                        arg.rtype = Reference.Ret;
-                    else if (arg.type.Contains('*'))
-                        arg.rtype = Reference.InOut;
-                    else
+                    if (arg.type.StartsWith("const ", StringComparison.Ordinal))
+                    {
                         arg.rtype = Reference.In;
+                        continue;
+                    }
+                    if (arg.type[arg.type.Length - 1] != '*' && arg.type[arg.type.Length - 1] != '&')
+                    {
+                        arg.rtype = Reference.In;
+                        continue;
+                    }
                 }
             }
+        }
+        private static bool IsUnknownReference(List<Method> methods)
+        {
+            foreach (var naMethod in methods)
+            {
+                for (int i = 0; i < naMethod.args.Count; i++)
+                {
+                    var arg = naMethod.args[i];
+                    if (arg.rtype != Reference.None)
+                        continue;
+                    return true;
+                }
+            }
+            return false;
         }
         /// <summary>
         /// 将成员函数转换为全局函数
@@ -199,20 +249,19 @@
         public static LibOP Create(string libopFile, string idlFile, bool fullDocument)
         {
             LibOP libOP = new LibOP();
-            //step.1 读取libop.h文件及com定义文件
-            libOP.FullOPLibOP(libopFile, idlFile);
+            //读取libop.h文件及com定义文件
+            if (!libOP.FullOPLibOP(libopFile, idlFile))
+                return null;
 
-            //step.1.1 填充注释
+            //填充注释
             if (fullDocument)
                 libOP.FullAnnotation();
-
-            //step.2 自动识别未定义的引用类型
-            libOP.FullReference();
 
             //暂时屏蔽参数中带std::wstring&的 待方案确定再支持
             for (int i = libOP._methods.Count - 1; i >= 0; i--)
             {
-                if (libOP._methods[i].args.Exists(item => item.type == "std::wstring&" && item.rtype != Reference.Ret))
+                var method = libOP._methods[i];
+                if (method.args.Count(item => item.rtype == Reference.Ret) > 1)
                     libOP._methods.RemoveAt(i);
             }
 

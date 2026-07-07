@@ -60,6 +60,12 @@
                     methodTxt.Add(line);
                     if (!line.Contains(')'))
                         continue;
+                    //此函数的注释只会有一行
+                    if (methodTxt.Count > 2 && line.Contains("Ver()", StringComparison.Ordinal))
+                    {
+                        while (methodTxt.Count > 2)
+                            methodTxt.RemoveAt(0);
+                    }
                     Method method = ParseMethod(methodTxt);
                     if (method != null)
                         _methods.Add(method);
@@ -107,10 +113,11 @@
             method.name = methodDefine.Substring(returnTypeSplitIndex, methonStartIndex - returnTypeSplitIndex).Trim();
             method.args = new List<Arg>();
             int findIndex = methonStartIndex + 1;
-            char[] findChar = new char[] { ',', ')' };
             while (findIndex > 0 && findIndex < methodDefine.Length)
             {
-                int tempIndex = methodDefine.IndexOfAny(findChar, findIndex);
+                int tempIndex = methodDefine.IndexOf(',', findIndex);
+                if (tempIndex < 0)
+                    tempIndex = methodDefine.IndexOf(')', findIndex);
                 if (tempIndex < 0)
                     break;
                 string argTxt = methodDefine.Substring(findIndex, tempIndex - findIndex);
@@ -122,16 +129,34 @@
                 Arg arg = new Arg();
                 arg.name = argTxt.Substring(splitIndex).Trim();
                 arg.type = argTxt.Substring(0, splitIndex).Trim();
+                if (arg.type.StartsWith("_In_", StringComparison.Ordinal))
+                {
+                    arg.rtype = Reference.In;
+                    splitIndex = arg.type.IndexOf(' ');
+                    arg.type = arg.type.Substring(splitIndex).Trim();
+                }
+                else if (arg.type.StartsWith("_Out_", StringComparison.Ordinal))
+                {
+                    arg.rtype = Reference.Out;
+                    splitIndex = arg.type.IndexOf(' ');
+                    arg.type = arg.type.Substring(splitIndex).Trim();
+                }
+                else if (arg.type.StartsWith("_Inout_", StringComparison.Ordinal))
+                {
+                    arg.rtype = Reference.InOut;
+                    splitIndex = arg.type.IndexOf(' ');
+                    arg.type = arg.type.Substring(splitIndex).Trim();
+                }
                 arg.annotation = string.Empty;
                 method.args.Add(arg);
 
                 //Fix:可能未按指针标准写法走，比如：int* a; 写成int *a;
-                if (argTxt[splitIndex + 1] == '*')
+                if (arg.name[0] == '*')
                 {
                     arg.name = arg.name.Substring(1);
                     arg.type += '*';
                 }
-                else if (argTxt[splitIndex + 1] == '&')
+                else if (arg.name[0] == '&')
                 {
                     arg.name = arg.name.Substring(1);
                     arg.type += '&';
