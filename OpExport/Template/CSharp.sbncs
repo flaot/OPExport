@@ -277,7 +277,7 @@ end
 {{~ end ~}}
     #region DLL Import Define
 {{~ for $field in libOP.functions ~}}
-    [DllImport(DLL_NAME, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+    [DllImport(DLL_NAME, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
     private static extern {{func_switchRtnType $field.rtype}} {{$field.name}}({{func_mergeArgTypeByDefine $field.args}});
 
 {{~ end ~}}
