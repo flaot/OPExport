@@ -210,6 +210,15 @@ public partial class OpSoft: IDisposable, IComparable<OpSoft>
         Dispose(true);
         GC.SuppressFinalize(this);
     }
+    private static string _PtrToString(IntPtr ptr)
+    {
+        if (ptr == IntPtr.Zero)
+            return string.Empty;
+        string str = Marshal.PtrToStringUni(ptr);
+        if (str == null)
+            return string.Empty;
+        return str;
+    }
     #endregion
     #region Overroid
     public override bool Equals(object obj) => obj is OpSoft soft && GetID() == soft.GetID();
@@ -269,16 +278,27 @@ for $arg in $field.args
         end
     end
 end
+$bString = false
+$showRtnType = func_switchRtnType $field.rtype
+if $showRtnType == "string" 
+    $bString = true
+end
  ~}}
-    public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}}) 
+    public {{$showRtnType}} {{$showFunc.name}}({{$showArgs}}) 
+{{~ if $bString ~}}
+        => _PtrToString({{$field.name}}({{$callNames | array.join ", "}}));
+{{~ else ~}}
         => {{$field.name}}({{$callNames | array.join ", "}});
+{{~ end ~}}
 
 {{~ end ~}}
 {{~ end ~}}
     #region DLL Import Define
 {{~ for $field in libOP.functions ~}}
+{{~ $rtnTempType = func_switchRtnType $field.rtype ~}}
+{{~ if $rtnTempType == "string"; $rtnTempType = "IntPtr"; end ~}}
     [DllImport(DLL_NAME, CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
-    private static extern {{func_switchRtnType $field.rtype}} {{$field.name}}({{func_mergeArgTypeByDefine $field.args}});
+    private static extern {{$rtnTempType}} {{$field.name}}({{func_mergeArgTypeByDefine $field.args}});
 
 {{~ end ~}}
     #endregion
