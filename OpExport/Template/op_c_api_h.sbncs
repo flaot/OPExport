@@ -1,0 +1,73 @@
+{{~ _func_setOutFileExtension ".h" ~}}
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+
+#pragma once
+#ifndef OP_C_API_H
+#define OP_C_API_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#if defined(_WIN32)
+#define OP_CALL __stdcall
+#if defined(OP_C_API_STATIC)
+#define OP_C_API
+#elif defined(OP_C_API_EXPORTS)
+#define OP_C_API __declspec(dllexport)
+#else
+#define OP_C_API __declspec(dllimport)
+#endif
+#else
+#define OP_CALL
+#if defined(OP_C_API_STATIC)
+#define OP_C_API
+#elif defined(OP_C_API_EXPORTS)
+#define OP_C_API __attribute__((visibility("default")))
+#else
+#define OP_C_API
+#endif
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+    typedef struct op_c_context op_c_context;
+    typedef op_c_context *op_handle;
+
+{{~ for $field in libOP.functions ~}}
+{{~
+    func func_switchType(varType)
+        if varType == "long"
+            ret "int"
+        else if varType == "long*"
+            ret "int*"
+        else if varType == "LONG_PTR"
+            ret "intptr_t"
+        else if varType == "size_t"
+            ret "uintptr_t"
+        else if varType == "unsigned long*"
+            ret "uint32_t*"
+        else
+            ret varType
+        end
+    end
+    $argStrArray = []
+    for $arg in $field.args
+        if $arg.rtype != 5
+            $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
+        end
+    end
+    $argStr = $argStrArray | array.join ", "
+~}}
+    OP_C_API {{func_switchType $field.rtype}} OP_CALL {{$field.name}}({{$argStr}});
+{{~ end ~}}
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // !OP_C_API_H

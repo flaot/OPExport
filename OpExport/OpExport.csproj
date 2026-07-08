@@ -51,10 +51,10 @@
     <None Update="Template\Java.sbncs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Template\OP_cpp.sbncs">
+    <None Update="Template\op_c_api_cpp.sbncs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Template\OP_h.sbncs">
+    <None Update="Template\op_c_api_h.sbncs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Template\Python.sbncs">

@@ -54,6 +54,9 @@
         In = 1,
         Out = 2,
         InOut = 3,
+        /// <summary> 函数返回(参数)标识 </summary>
         Ret = 4,
+        /// <summary> 隐藏参数(外部调用不可见) </summary>
+        Hide = 5,
     }
 }

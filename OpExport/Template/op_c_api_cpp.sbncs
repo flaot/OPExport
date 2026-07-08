@@ -1,0 +1,430 @@
+{{~ _func_setOutFileExtension ".cpp" ~}}
+/**
+This is an automatically generated class by OpExport. Please do not modify it.
+License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
+**/
+{{~
+    gDefine = { 
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
+        ObjName: "handle", #插入的对象名称
+        CreateFunc: "OpCreate", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OpDestroy", #导出函数需要的对象释放函数名称
+        RTypeArray: ["long*", "std::wstring&", "LONG_PTR*", "float*", "double*", "int64_t*"], #返回类型
+    } 
+~}}
+
+{{~
+#生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    $findArg = null
+    if ($exMethod.args | array.size) > 0
+        $findTemp = $exMethod.args | array.last
+        if $findTemp.rtype == 4
+            $findArg = $findTemp
+        end
+    end
+    if $findArg != null
+        $retType = $findArg.type
+        if (gDefine.RTypeArray | array.contains $findArg.type)
+            $retType = $retType | string.slice 0 (($retType | string.size) - 1)
+        end
+        if $retType != $findArg.type
+            $exMethod.rtype = $retType;
+            if !($findArg.annotation | string.empty)
+                $exMethod.annotation = $findArg.annotation;
+            end
+            $rIndex = ($exMethod.args | array.size) - 1
+            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+    end
+    ret $exMethod
+end
+
+#func_switchType 更换类型
+func func_switchType(varType)
+    if varType == "long"
+        ret "int"
+    else if varType == "long*"
+        ret "int*"
+    else if varType == "LONG_PTR"
+        ret "intptr_t"
+    else if varType == "size_t"
+        ret "uintptr_t"
+    else if varType == "unsigned long*"
+        ret "uint32_t*"
+    else
+        ret varType
+    end
+end
+
+#func_showFunctionDefineArgStr 开放给外部调用的参数列表
+func func_showFunctionDefineArgStr(varField)
+    $argStrArray = []
+    for $arg in varField.args
+       if $arg.rtype != 5
+            $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
+        end
+    end
+    ret $argStrArray | array.join ", "
+end
+
+#func_getRetArg 获取返回参数
+func func_getRetArg(varOMethod)
+    $tempArg = null
+    for $arg in varOMethod.args
+        if $arg.rtype == 4
+            $tempArg = $arg
+            break
+        end
+    end
+    ret $tempArg
+end
+
+#func_functionCallArgNameStr 传递参数
+func func_functionCallArgNameStr(oMethod, bRefRet) 
+$argNameStrArray = []
+for $arg in oMethod.args
+    if $arg.rtype == 4
+        if !bRefRet || ($arg.type | string.ends_with "&")
+            $argNameStrArray = $argNameStrArray | array.add $arg.name
+        else
+            $argNameStrArray = $argNameStrArray | array.add ("&_" + $arg.name)
+        end
+    else
+        if $arg.type == "const wchar_t*"
+            $argNameStrArray = $argNameStrArray | array.add "safe_text("+$arg.name+")"
+        else if $arg.type == "LONG_PTR"
+            $argNameStrArray = $argNameStrArray | array.add "static_cast<LONG_PTR>("+$arg.name+")"
+        else if ($arg.type | string.ends_with "*") && !($arg.type | string.starts_with "const") && $arg.type != "void*"
+            $argNameStrArray = $argNameStrArray | array.add "&_"+$arg.name;
+        else
+            $argNameStrArray = $argNameStrArray | array.add $arg.name
+        end
+    end
+end
+ret $argNameStrArray | array.join ", "
+end 
+
+#func_functionCallArgNameStrByMem 传递参数
+func func_functionCallArgNameStrByMem(oMethod) 
+    $argNameStrArray = []
+    for $arg in oMethod.args
+        if $arg.type == "const wchar_t*"
+            $argNameStrArray = $argNameStrArray | array.add "safe_text("+$arg.name+")"
+        else if $arg.type == "LONG_PTR"
+            $argNameStrArray = $argNameStrArray | array.add "static_cast<LONG_PTR>("+$arg.name+")"
+        else if ($arg.type | string.ends_with "*") && !($arg.type | string.starts_with "const") && $arg.type != "void*"
+            $argNameStrArray = $argNameStrArray | array.add $arg.name;
+        else
+            $argNameStrArray = $argNameStrArray | array.add $arg.name
+        end
+    end
+    ret $argNameStrArray | array.join ", "
+    end 
+-}}
+
+
+{{- #func_functionBodyOut 重置输出参数 ~}}
+{{~ func func_functionBodyOut(varField, varTab) ~}}
+    {{~ for $arg in varField.args ~}}
+        {{~ if varTab == 1 ~}}
+            {{~ if $arg.rtype == 2 ~}}
+    out_value({{$arg.name}}, {{$arg.type | string.remove_last '*'}}{});
+            {{~ end ~}}
+        {{~ else ~}}
+            {{~ if $arg.rtype == 2 || $arg.rtype == 3 ~}}
+        out_value({{$arg.name}}, {{$arg.type | string.remove_last '*'}}{});
+            {{~ end ~}}
+        {{~ end ~}}
+    {{~ end ~}}
+{{~ end -}}
+
+{{- #func_functionBody 输出调用函数代码 ~}}
+{{~ func func_functionBody(varField, varOMethod, bDefineRet) ~}}
+{{~ for $arg in varOMethod.args ~}}
+{{~ if $arg.rtype == 2 || $arg.rtype == 5 ~}}
+        {{$arg.type | string.remove_last '*'}} _{{$arg.name}} = {};
+{{~ else if $arg.rtype == 3 ~}}
+        {{$arg.type | string.remove_last '*'}} _{{$arg.name}} = in_int({{$arg.name}});
+{{~ else if $arg.rtype == 4 && bDefineRet ~}}
+        {{$arg.type | string.remove_last '*'}} _{{$arg.name}} = {};
+{{~ end ~}}
+{{~ end ~}}
+        op.{{varOMethod.name}}({{func_functionCallArgNameStr varOMethod bDefineRet}}); 
+{{~ for $arg in varOMethod.args ~}}
+{{~ if $arg.rtype == 2 || $arg.rtype == 3 ~}}
+        out_value({{$arg.name}}, _{{$arg.name}});
+{{~ end ~}}
+{{~ end ~}}
+{{~ if bDefineRet ~}}
+{{~ for $arg in varOMethod.args ~}}
+{{~ if $arg.rtype == 4 ~}}
+        return static_cast<{{func_switchType varField.rtype}}>(_{{$arg.name}});
+{{~ end ~}}
+{{~ end ~}}
+{{~ end ~}}
+{{~ end -}}
+
+
+#include "op_c_api.h"
+#include "../../include/libop.h"
+#include "../memory/ProcessMemory.h"
+#include "../base/Environment.h"
+
+#include <Windows.h>
+#include <cstdint>
+#include <string>
+#include <utility>
+
+#undef FindWindow
+#undef FindWindowEx
+#undef SetWindowText
+
+extern "C" BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD reason, LPVOID) {
+    if (reason == DLL_PROCESS_ATTACH) {
+        RuntimeEnvironment::setInstance(hInstance);
+    }
+    return TRUE;
+}
+
+#define OP_WIDEN_TEXT2(text) L##text
+#define OP_WIDEN_TEXT(text) OP_WIDEN_TEXT2(text)
+
+using op::ProcessMemory;
+
+struct op_c_context {
+    op_c_context() = default;
+    ~op_c_context() = default;
+
+    op_c_context(const op_c_context &) = delete;
+    op_c_context &operator=(const op_c_context &) = delete;
+
+    op::Op op;
+    std::wstring string_result;
+};
+
+namespace {
+
+template <typename Func>
+int call_int(op_handle handle, Func &&func) {
+    op::Op *op = handle ? &handle->op : nullptr;
+    if (!op)
+        return 0;
+
+    try {
+        return static_cast<int>(std::forward<Func>(func)(*op));
+    } catch (...) {
+        return 0;
+    }
+}
+
+template <typename Func>
+int call_ret(op_handle handle, Func &&func) {
+    return call_int(handle, [&](op::Op &op) {
+        long ret = 0;
+        std::forward<Func>(func)(op, &ret);
+        return ret;
+    });
+}
+
+template <typename Func>
+intptr_t call_intptr(op_handle handle, Func &&func) {
+    if (!handle)
+        return 0;
+
+    try {
+        LONG_PTR ret = 0;
+        std::forward<Func>(func)(handle->op, &ret);
+        return static_cast<intptr_t>(ret);
+    } catch (...) {
+        return 0;
+    }
+}
+
+template <typename Func>
+const wchar_t *call_string(op_handle handle, Func &&func) {
+    if (!handle)
+        return L"";
+
+    try {
+        handle->string_result.clear();
+        std::forward<Func>(func)(handle->op, handle->string_result);
+        return handle->string_result.c_str();
+    } catch (...) {
+        return L"";
+    }
+}
+
+template <typename Func>
+const wchar_t *call_json_string(op_handle handle, const wchar_t *fallback, Func &&func) {
+    if (!handle)
+        return fallback;
+
+    try {
+        handle->string_result.clear();
+        std::forward<Func>(func)(handle->op, handle->string_result);
+        if (handle->string_result.empty())
+            handle->string_result = fallback;
+        return handle->string_result.c_str();
+    } catch (...) {
+        return fallback;
+    }
+}
+
+const wchar_t *safe_text(const wchar_t *text) {
+    return text ? text : L"";
+}
+
+constexpr const wchar_t *kJsonFailure = L"{\"ok\":0}";
+constexpr const wchar_t *kJsonResultsFailure = L"{\"ok\":0,\"results\":[]}";
+constexpr const wchar_t *kYoloJsonFailure = L"{\"ok\":0,\"code\":-1,\"results\":[]}";
+
+long in_int(const int *value) {
+    return value ? *value : 0;
+}
+
+template <typename Target, typename Value>
+void out_value(Target *target, Value value) {
+    if (target)
+        *target = static_cast<Target>(value);
+}
+
+void out_int(int *target, long value) {
+    out_value(target, value);
+}
+
+LONG_PTR resolve_memory_hwnd(op_handle handle, intptr_t hwnd) {
+    if (hwnd != 0 || !handle)
+        return static_cast<LONG_PTR>(hwnd);
+
+    LONG_PTR bind_hwnd = 0;
+    handle->op.GetBindWindow(&bind_hwnd);
+    return bind_hwnd;
+}
+
+template <typename Func>
+int call_memory(op_handle handle, intptr_t hwnd, Func &&func) {
+    if (!handle)
+        return 0;
+
+    try {
+        ProcessMemory mem;
+        const LONG_PTR target = resolve_memory_hwnd(handle, hwnd);
+        return std::forward<Func>(func)(mem, reinterpret_cast<HWND>(target)) ? 1 : 0;
+    } catch (...) {
+        return 0;
+    }
+}
+
+} // namespace
+
+// Lifecycle
+
+{{gDefine.ObjType}} OP_CALL {{gDefine.CreateFunc}}(void) {
+    try {
+        return new op_c_context();
+    } catch (...) {
+        return nullptr;
+    }
+}
+void OP_CALL {{gDefine.ReleaseFunc}}({{gDefine.ObjType}} {{gDefine.ObjName}}) {
+    delete {{gDefine.ObjName}};
+}
+
+// Basic
+
+{{~ #生成方法 ~}}
+{{~ for $field in libOP.functions ~}}
+{{~ if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc ~}}
+{{~ $showFunc = func_genFunc $field ~}}
+{{~ $oMethod = (_func_methodByFunction $field.name) ~}}
+{{func_switchType $field.rtype}} OP_CALL {{$field.name}}({{func_showFunctionDefineArgStr $field}}) {
+{{~func_functionBodyOut $field 1 ~}}
+{{~ $retArg = func_getRetArg $oMethod~}}
+{{~ #版本号 ~}}
+{{~ if $oMethod.name == "Ver" ~}}
+    return OP_WIDEN_TEXT(OP_VERSION);
+{{~ #OCR引擎初始化函数 ~}}
+{{~ else if (["SetOcrEngine", "SetYoloEngine"] | array.contains $showFunc.name) ~}}
+    return call_int({{gDefine.ObjName}}, [&](op::Op &op) { 
+        return {{~func_functionBody $field $oMethod false ~}}
+    });
+{{~ #返回json的函数 ~}}
+{{~ else if (["YoloDetect", "YoloDetectFromFile"] | array.contains $showFunc.name) ~}}
+    return call_json_string({{gDefine.ObjName}}, kYoloJsonFailure, [&](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
+        {{~func_functionBody $field $oMethod false ~}}
+    });
+{{~ #返回json的函数 ~}}
+{{~ else if (["CvConnectedComponents", "CvFindContours", "CvMatchAllTemplates"] | array.contains $showFunc.name) ~}}
+    return call_json_string({{gDefine.ObjName}}, kJsonResultsFailure, [&](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
+        {{~func_functionBody $field $oMethod false ~}}
+    });
+
+{{~ #返回json的函数~}}
+{{~ else if (["CvMatchTemplate", "CvMatchTemplateScale", "CvMatchAnyTemplate", "CvFeatureMatchTemplate", "CvEdgeMatchTemplate", "CvShapeMatchTemplate"] | array.contains $showFunc.name) ~}}
+    return call_json_string({{gDefine.ObjName}}, kJsonFailure, [&](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
+        {{~func_functionBody $field $oMethod false ~}}
+    });
+{{~ #读内存函数 ~}}
+{{~ else if (["ReadInt", "ReadFloat", "ReadDouble"] | array.contains $showFunc.name) ~}}
+    {{~ $lastArg = $oMethod.args | array.last ~}}
+    {{~ $firstArg = $oMethod.args | array.first ~}}
+    if (!{{$lastArg.name}})
+        return 0;
+    return call_memory({{gDefine.ObjName}}, {{$firstArg.name}}, [&](ProcessMemory &mem, {{func_switchType $firstArg.type}} {{$firstArg.name}}) { 
+        return mem.{{$oMethod.name}}({{func_functionCallArgNameStrByMem $oMethod}}); 
+    });
+{{~ #写内存函数 ~}}
+{{~ else if (["WriteInt", "WriteFloat", "WriteDouble"] | array.contains $showFunc.name) ~}}
+    {{~ $firstArg = $oMethod.args | array.first ~}}
+    return call_memory({{gDefine.ObjName}}, {{$firstArg.name}}, [&](ProcessMemory &mem, {{func_switchType $firstArg.type}} {{$firstArg.name}}) { 
+        return mem.{{$oMethod.name}}({{func_functionCallArgNameStrByMem $showFunc}}) != 0; 
+    });
+{{~ #FindPic未找到返回值为-1 ~}}
+{{~ else if $showFunc.name == "FindPic" ~}}
+    if (!{{gDefine.ObjName}})
+        return -1;
+
+    try {
+        {{~func_functionBody $field $oMethod true ~}}
+    } catch (...) {
+        {{~func_functionBodyOut $field 2 ~}}
+        return -1;
+    }
+{{~ else if $field.rtype == "const wchar_t*" ~}}
+    return call_string({{gDefine.ObjName}}, [](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
+        {{~func_functionBody $field $oMethod false ~}}
+    });
+{{~ else if $field.rtype == "long" && $retArg != null ~}}
+    return call_ret({{gDefine.ObjName}}, [&](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
+        {{~func_functionBody $field $oMethod false ~}}
+    });
+{{~ else if $field.rtype == "LONG_PTR" && $retArg != null ~}}
+    return call_intptr({{gDefine.ObjName}}, [&](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
+        {{~func_functionBody $field $oMethod false ~}}
+    });
+{{~ else ~}}
+    if (!{{gDefine.ObjName}})
+        {{~ if $field.rtype == "void" ~}}
+        return;
+        {{~ else ~}}
+        return {{func_switchType $field.rtype}}{};
+        {{~ end ~}}
+
+    try {
+        {{~func_functionBody $field $oMethod true ~}}
+    } catch (...) {
+        {{~func_functionBodyOut $field 2 ~}}
+        {{~ if $field.rtype != "void" ~}}
+        return {{func_switchType $field.rtype}}{};
+        {{~ end ~}}
+    }
+{{~ end ~}}
+}
+
+{{~ end ~}}
+{{~ end ~}}
+#undef OP_WIDEN_TEXT
+#undef OP_WIDEN_TEXT2

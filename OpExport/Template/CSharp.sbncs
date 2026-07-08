@@ -5,15 +5,14 @@ License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 **/
 {{~
     gDefine = { 
-        Prefix: "OP_", #导出OP函数的前缀名称
-        ObjName: "_op", #插入的对象名称
-        PStr: "_pStr", #插入的字符串指针名称
-        PStrSize: "_nSize", #插入的字符串指针长度名称
-        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
-        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
+        ObjName: "handle", #插入的对象名称
+        CreateFunc: "OpCreate", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OpDestroy", #导出函数需要的对象释放函数名称
 
-        Dll32Path: "./Dll/op_x32.dll",
-        Dll64Path: "./Dll/op_x64.dll",
+        Dll32Path: "./Dll/op_c_api_x86.dll",
+        Dll64Path: "./Dll/op_c_api_x64.dll",
     } 
 ~}}
 
@@ -23,7 +22,7 @@ func func_switchType(varType)
     case varType
         when "wchar_t*" 
             ret "IntPtr"
-        when "libop*" 
+        when gDefine.ObjType
             ret "IntPtr"
         when "const wchar_t*" 
             ret "string"
@@ -34,6 +33,8 @@ func func_switchType(varType)
         when "long*" 
             ret "IntPtr"
         when "char*" 
+            ret "IntPtr"
+        when "size_t" 
             ret "IntPtr"
         when "size_t*" 
             ret "IntPtr"
@@ -123,31 +124,44 @@ end
 func func_mergeArgTypeByDefine(argArray)
     $argStrArray = []
     for $arg in argArray
-        $temp = (func_switchArgType $arg.type $arg.rtype) + " " + (func_safeName $arg.name)
-        $argStrArray = $argStrArray | array.add $temp
+        if $arg.rtype != 5
+            $temp = (func_switchArgType $arg.type $arg.rtype) + " " + (func_safeName $arg.name)
+            $argStrArray = $argStrArray | array.add $temp
+        end
     end
     ret ($argStrArray | array.join ", ")
 end
+
+#func_getRetArg 获取返回参数
+func func_getRetArg(varOMethod)
+    $tempArg = null
+    for $arg in varOMethod.args
+        if $arg.rtype == 4
+            $tempArg = $arg
+            break
+        end
+    end
+    ret $tempArg
+end
+
 #生成方法定义
 func func_genFunc(dllFunc)
     $exMethod = (_func_methodByFunction dllFunc.name)
-    $findArg = null
-    if ($exMethod.args | array.size) > 0
-        $findTemp = $exMethod.args | array.last
-        if $findTemp.rtype == 4
-            $findArg = $findTemp
-        end
-    end
+    $findArg = func_getRetArg $exMethod
     if $findArg != null
         $retType = (func_switchRtnTypeCheck $findArg.type)
-        if $retType != $findArg.type
-            $exMethod.rtype = $retType;
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
-            end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        $exMethod.rtype = $retType;
+        if !($findArg.annotation | string.empty)
+            $exMethod.annotation = $findArg.annotation;
         end
+        $rIndex = -1
+        for $arg in $exMethod.args
+            $rIndex = $rIndex + 1
+            if $arg.rtype == 4
+                break
+            end
+        end
+        _func_argsRemoveAt $exMethod.args $rIndex
     end
     ret $exMethod
 end
@@ -165,14 +179,12 @@ using System.Runtime.InteropServices;
 public partial class OpSoft: IDisposable, IComparable<OpSoft>
 {
 #if X86
-    const string DLL_NAME = {{gDefine.Dll32Path}};
+    const string DLL_NAME = "{{gDefine.Dll32Path}}";
 #else
-    const string DLL_NAME = {{gDefine.Dll64Path}};
+    const string DLL_NAME = "{{gDefine.Dll64Path}}";
 #endif
 
     private IntPtr {{gDefine.ObjName}}; // 非托管资源
-    private IntPtr {{gDefine.PStr}} = IntPtr.Zero;
-    private int {{gDefine.PStrSize}} = 0;
 
     #region Dispose
     private bool disposed = false;   // 是否已经释放资源的标志
@@ -190,12 +202,6 @@ public partial class OpSoft: IDisposable, IComparable<OpSoft>
             }
             {{gDefine.ReleaseFunc}}({{gDefine.ObjName}});
             {{gDefine.ObjName}} = IntPtr.Zero;
-            if ({{gDefine.PStrSize}} > 0)
-            {
-                Marshal.FreeHGlobal({{gDefine.PStr}});
-                {{gDefine.PStr}} = IntPtr.Zero;
-                {{gDefine.PStrSize}} = 0;
-            }
         }
         disposed = true;
     }
@@ -244,51 +250,28 @@ public partial class OpSoft: IDisposable, IComparable<OpSoft>
 {{~ #生成方法
 $argStrArray = []
  for $a in $showFunc.args
-     $a.type = func_switchArgType $a.type $a.rtype
-     $temp = $a.type + " " + (func_safeName $a.name)
-     $argStrArray = $argStrArray | array.add $temp
+    if $a.rtype != 5 && $a.rtype != 4
+        $temp = (func_switchArgType $a.type $a.rtype) + " " + (func_safeName $a.name)
+        $argStrArray = $argStrArray | array.add $temp
+    end
  end 
 $showArgs = ($argStrArray | array.join ", ")
 
 $callNames = []
 for $arg in $field.args
-    $findItem = null
-    for $showArg in $showFunc.args
-        if $showArg.name == (func_safeName $arg.name)
-            $findItem = $showArg
-            break
-        end
-    end
-    if $findItem == null
-        $callNames = $callNames | array.add (func_safeName $arg.name)
-    else
-        if $findItem.type | string.starts_with "ref "
+    if $arg.rtype != 5 && $arg.rtype != 4
+        if $arg.rtype == 3
             $callNames = $callNames | array.add ("ref " + (func_safeName $arg.name))
-        else if $findItem.type | string.starts_with "out "
+        else if $arg.rtype == 2
             $callNames = $callNames | array.add ("out " + (func_safeName $arg.name))
         else
             $callNames = $callNames | array.add (func_safeName $arg.name)
         end
     end
-
 end
  ~}}
-{{~ if $showFunc.rtype == "std::wstring" ~}}
-    public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}})
-    {
-        int _size = {{$field.name}}({{$callNames | array.join ", "}});
-        if (_size > 0)
-        {
-            if ({{gDefine.PStrSize}} > 0) Marshal.FreeHGlobal({{gDefine.PStr}});
-            {{gDefine.PStr}} = Marshal.AllocHGlobal({{gDefine.PStrSize}} = _size);
-            {{$field.name}}({{$callNames | array.join ", "}});
-        }
-        string str = Marshal.PtrToStringUni({{gDefine.PStr}});
-        return str;
-    }
-{{~ else ~}}
-    public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}}) => {{$field.name}}({{$callNames | array.join ", "}});
-{{~ end -}}
+    public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}}) 
+        => {{$field.name}}({{$callNames | array.join ", "}});
 
 {{~ end ~}}
 {{~ end ~}}

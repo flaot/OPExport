@@ -22,7 +22,7 @@
                 string line = lines[i].Trim();
                 if (string.IsNullOrEmpty(line))
                     continue;
-                if (line.StartsWith("//")) //被注释的行
+                if (line.StartsWith("//", StringComparison.Ordinal)) //被注释的行
                     continue;
                 //判定对外开放的方法
                 if (!ParsePermission(line))
@@ -38,7 +38,7 @@
         }
         private bool ParsePermission(string line)
         {
-            return line.StartsWith("[id(");
+            return line.StartsWith("[id(", StringComparison.Ordinal);
         }
         private Method ParseMethod(List<string> methodTxt)
         {
@@ -49,7 +49,7 @@
 
             //没有返回值的构造函数等
             int returnTypeSplitIndex = methodDefine.LastIndexOf(' ', methonStartIndex);
-            if (methodDefine.LastIndexOf(' ', methonStartIndex) < 0)
+            if (returnTypeSplitIndex < 0)
                 return null;
 
             Method method = new Method();
@@ -60,7 +60,6 @@
             method.name = methodDefine.Substring(returnTypeSplitIndex, methonStartIndex - returnTypeSplitIndex).Trim();
             method.args = new List<Arg>();
             int findIndex = methonStartIndex + 1;
-            char[] findChar = new char[] { ',', ')' };
             while (findIndex > 0 && findIndex < methodDefine.Length)
             {
                 int tempIndex = FindNextArgStartIndex(methodDefine, findIndex);

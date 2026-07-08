@@ -1,27 +1,24 @@
-﻿namespace OpDefine
+﻿using System.Text;
+
+namespace OpDefine
 {
     public class LibOP
     {
         /// <summary> 导出OP函数的前缀名称 </summary>
-        public const string Prefix = "OP_";
+        public const string Prefix = "Op";
         /// <summary> 插入的对象名称 </summary>
-        public const string ObjName = "_op";
-        /// <summary> 插入的字符串指针名称 </summary>
-        public const string PStr = "_pStr";
-        /// <summary> 插入的字符串指针长度名称 </summary>
-        public const string PStrSize = "_nSize";
+        public const string ObjName = "handle";
+        /// <summary> OP对象类型 </summary>
+        private const string ObjType = "op_handle";
         /// <summary> 导出函数需要的对象创建函数名称 </summary>
-        public const string CreateFunc = "OP_CreateOP";
+        public const string CreateFunc = "OpCreate";
         /// <summary> 导出函数需要的对象释放函数名称 </summary>
-        public const string ReleaseFunc = "OP_ReleaseOP";
+        public const string ReleaseFunc = "OpDestroy";
 
         /// <summary> 导出的函数(OP_XXX) </summary>
         public List<Method> functions;
         /// <summary> op.h定义的成员函数 </summary>
         private List<Method> _methods;
-
-        /// <summary> 支持的基本返回类型(扩展) </summary>
-        private string[] _retBaseTypes = new string[] { "long", "LONG_PTR", "float", "double", "int64_t" };
 
         /// <summary>
         /// 根据函数名称查找该函数在DLL中的方法定义
@@ -47,7 +44,11 @@
             //解析'libop.h'文件
             var nativeLibOPMethods = NativeLibOP.Parse(libopFile);
             //解析'op.idl'文件补充参数 in out 说明
-            FullReferenceByIDLFile(nativeLibOPMethods, idlFile);
+            if (!string.IsNullOrEmpty(idlFile))
+            {
+                var idl = NativeIdl.Parse(idlFile);
+                FullReferenceByIDLFile(nativeLibOPMethods, idl);
+            }
             //识别返回值类型
             FullReferenceByRet(nativeLibOPMethods);
             //自动识别未定义的引用类型
@@ -58,11 +59,8 @@
             _methods = nativeLibOPMethods;
             return true;
         }
-        private static void FullReferenceByIDLFile(List<Method> methods, string idlFile)
+        private static void FullReferenceByIDLFile(List<Method> methods, List<Method> idl)
         {
-            if (string.IsNullOrEmpty(idlFile))
-                return;
-            var idl = NativeIdl.Parse(idlFile);
             foreach (var naMethod in methods)
             {
                 var findIdl = idl.Find(item => item.name.Equals(naMethod.name, StringComparison.OrdinalIgnoreCase));
@@ -91,8 +89,67 @@
                 for (int i = 0; i < method.args.Count; i++)
                 {
                     var arg = method.args[i];
-                    if(Array.Exists(retStrs, arg.name.Equals))
+                    if (Array.Exists(retStrs, arg.name.Equals))
                         arg.rtype = Reference.Ret;
+                }
+            }
+
+            //这两个返回图片数据
+            foreach (var method in methods)
+            {
+                if (method.name == "GetScreenData" ||
+                    method.name == "GetScreenDataBmp")
+                {
+                    var arg = method.args.Find(item => item.name == "data");
+                    arg.rtype = Reference.Ret;
+                    arg = method.args.Find(item => item.name == "ret");
+                    arg.rtype = Reference.Out;
+                }
+            }
+
+            //为内存读取添加返回值
+            foreach (var method in methods)
+            {
+                if (method.name == "ReadDouble" ||
+                    method.name == "ReadFloat" ||
+                    method.name == "ReadInt")
+                {
+                    method.rtype = "long";
+                    method.args[method.args.Count - 1].rtype = Reference.Out;
+                }
+            }
+
+            //末尾存在两个返回值,并且倒数第二个为retjson，则隐藏末尾参数
+            foreach (var method in methods)
+            {
+                if (method.args.Count <= 0)
+                    continue;
+                if (method.args.Count < 2)
+                    continue;
+                var lastArg1 = method.args[method.args.Count - 1];
+                var lastArg2 = method.args[method.args.Count - 2];
+
+                if (lastArg1.rtype == Reference.Ret && lastArg2.name == "retjson" &&
+                    lastArg2.rtype == Reference.Ret)
+                    lastArg1.rtype = Reference.Hide;
+            }
+
+            //末尾存在两个返回值，则将倒数第二个为函数返回值
+            foreach (var method in methods)
+            {
+                if (method.args.Count <= 0)
+                    continue;
+                if (method.args.Count < 2)
+                    continue;
+                var lastArg1 = method.args[method.args.Count - 1];
+                var lastArg2 = method.args[method.args.Count - 2];
+                if (lastArg1.rtype == Reference.Hide)
+                    continue;
+
+                if (lastArg1.rtype == Reference.Ret &&
+                    lastArg2.rtype == Reference.Ret)
+                {
+                    lastArg1.rtype = Reference.Out;
                 }
             }
         }
@@ -120,17 +177,28 @@
         }
         private static bool IsUnknownReference(List<Method> methods)
         {
+            bool reault = false;
             foreach (var naMethod in methods)
             {
                 for (int i = 0; i < naMethod.args.Count; i++)
                 {
                     var arg = naMethod.args[i];
-                    if (arg.rtype != Reference.None)
-                        continue;
-                    return true;
+                    if (arg.rtype == Reference.None)
+                    { 
+                        Console.WriteLine($"[Error] {naMethod.name}.{arg.name}:引用类型未知");
+                        reault = true;
+                    }
                 }
             }
-            return false;
+            foreach (var naMethod in methods)
+            {
+                if (naMethod.args.Count(item => item.rtype == Reference.Ret) > 1)
+                {
+                    Console.WriteLine($"[Error] {naMethod.name}:存在多个返回值");
+                    reault = true;
+                }
+            }
+            return reault;
         }
         /// <summary>
         /// 将成员函数转换为全局函数
@@ -142,10 +210,12 @@
             //增加对象参数
             foreach (var func in functions)
             {
+                bool isVer = func.name == "Ver";
                 func.name = func.name.Insert(0, Prefix);
+                if (isVer) continue;
                 func.args.Insert(0, new Arg()
                 {
-                    type = "libop*",
+                    type = ObjType,
                     name = ObjName,
                     annotation = string.Empty,
                 });
@@ -163,11 +233,11 @@
                 example = string.Empty,
                 name = ReleaseFunc,
                 annotation = string.Empty,
-                args = new List<Arg>() { new Arg() { type = "libop*", name = ObjName, annotation = string.Empty } },
+                args = new List<Arg>() { new Arg() { type = ObjType, name = ObjName, annotation = string.Empty } },
             });
             functions.Insert(0, new Method()
             {
-                rtype = "libop*",
+                rtype = ObjType,
                 rannotation = string.Empty,
                 example = string.Empty,
                 name = CreateFunc,
@@ -181,11 +251,10 @@
         /// <param name="function"></param>
         private void SwtichCPlusPlus(Method function)
         {
+            //OPVer函数
             if (function.rtype == "std::wstring")
             {
-                function.rtype = "int";
-                function.args.Add(new Arg() { type = "wchar_t*", name = PStr, annotation = string.Empty });
-                function.args.Add(new Arg() { type = "int", name = PStrSize, annotation = string.Empty });
+                function.rtype = "const wchar_t*";
                 return;
             }
 
@@ -193,27 +262,24 @@
             if (findArg == null)
                 return;
 
-            if (findArg.type == "std::wstring&")
+            //处理参数转返回类型
+            bool isHandle = false;
+            if (!isHandle && findArg.type == "std::wstring&")
             {
-                function.rtype = "int";
+                function.rtype = "const wchar_t*";
+                isHandle = true;
+            }
+            if (!isHandle && findArg.type.EndsWith('*'))
+            {
+                function.rtype = findArg.type.Substring(0, findArg.type.Length - 1);
+                isHandle = true;
+            }
+            if (isHandle)
+            {
                 if (!string.IsNullOrEmpty(findArg.annotation))
                     function.rannotation = findArg.annotation;
                 function.args.Remove(findArg);
-                function.args.Add(new Arg() { type = "wchar_t*", name = PStr, annotation = string.Empty });
-                function.args.Add(new Arg() { type = "int", name = PStrSize, annotation = string.Empty });
                 return;
-            }
-            for (var i = 0; i < _retBaseTypes.Length; i++)
-            {
-                var typeStr = _retBaseTypes[i];
-                if (findArg.type == $"{typeStr}*")
-                {
-                    function.rtype = typeStr;
-                    if (!string.IsNullOrEmpty(findArg.annotation))
-                        function.rannotation = findArg.annotation;
-                    function.args.Remove(findArg);
-                    return;
-                }
             }
             Console.WriteLine("[Error] 未处理的返回类型:" + function.ToString());
         }
@@ -256,14 +322,6 @@
             //填充注释
             if (fullDocument)
                 libOP.FullAnnotation();
-
-            //暂时屏蔽参数中带std::wstring&的 待方案确定再支持
-            for (int i = libOP._methods.Count - 1; i >= 0; i--)
-            {
-                var method = libOP._methods[i];
-                if (method.args.Count(item => item.rtype == Reference.Ret) > 1)
-                    libOP._methods.RemoveAt(i);
-            }
 
             //step.3 根据方法定义填充C函数定义方式的函数
             libOP.FullFunciton();
