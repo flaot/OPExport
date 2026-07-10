@@ -5,17 +5,61 @@ License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 **/
 {{~
     gDefine = { 
-        Prefix: "OP_", #导出OP函数的前缀名称
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
     } 
 ~}}
 {{~
-func func_switchType(typeStr)
-    if typeStr == "libop*"
+func func_switchType(varType)
+    if varType == gDefine.ObjType
         ret "void*"
+    else if varType == "long"
+        ret "int"
+    else if varType == "long*"
+        ret "int*"
+    else if varType == "LONG_PTR"
+        ret "intptr_t"
+    else if varType == "size_t"
+        ret "uintptr_t"
+    else if varType == "unsigned long*"
+        ret "uint32_t*"
     else
-        ret typeStr
+        ret varType
     end
-end    
+end   
+
+#返回函数指针参数声明
+func func_typedefArg(varField)
+    $tempArgs = []
+    for $arg in varField.args
+        if $arg.rtype != 5
+            $tempArgs = $tempArgs | array.add (func_switchType $arg.type)
+        end
+    end
+    ret $tempArgs | array.join ", "
+end
+
+#返回函数参数声明
+func func_methodDefArgs(varField)
+    $tempArgs = []
+    for $arg in varField.args
+        if $arg.rtype != 5
+            $tempArgs = $tempArgs | array.add ((func_switchType $arg.type) + " " + $arg.name)
+        end
+    end
+    ret $tempArgs | array.join ", "
+end
+
+#返回调用函数参数
+func func_callMethodArgs(varField)
+    $tempArgs = []
+    for $arg in varField.args
+        if $arg.rtype != 5
+            $tempArgs = $tempArgs | array.add $arg.name
+        end
+    end
+    ret $tempArgs | array.join ", "
+end
 ~}}
 
 #include "libopExport.h"
@@ -28,14 +72,14 @@ end
 HMODULE hinst = NULL;
 
 {{~ for $field in libOP.functions ~}}
-{{~ $str = $field.args | array.map "type" | array.each @func_switchType | array.join ", " ~}}
+{{~ $str = func_typedefArg $field ~}}
 typedef {{func_switchType $field.rtype}}(*p{{$field.name}}Func)({{$str}});
 {{~ end ~}}
 {{~ for $field in libOP.functions ~}}
 p{{$field.name}}Func _{{$field.name}} = NULL;
 {{~ end ~}}
 
-int {{gDefine.Prefix}}LoadDll(wchar_t *dllPath)
+int {{gDefine.Prefix}}LoadDll(const wchar_t* dllPath)
 {
     hinst = LoadLibraryW(dllPath);
     if (NULL == hinst)
@@ -52,23 +96,14 @@ void {{gDefine.Prefix}}UnLoadDll()
     {{~ end ~}}
 }
 {{~ for $field in libOP.functions ~}}
-{{~
-    $argStrArray = []
-    for $arg in $field.args
-        $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
-    end
-    $argStr = $argStrArray | array.join ", "
-
-    $argNameStr = $field.args | array.map "name" | array.each @func_switchType | array.join ", "
-~}}
-{{func_switchType $field.rtype}} {{$field.name}}({{$argStr}})
+{{func_switchType $field.rtype}} {{$field.name}}({{func_methodDefArgs $field}})
 {
     if(_{{$field.name}} == NULL)
         _{{$field.name}} = (p{{$field.name}}Func)GetProcAddress(hinst, "{{$field.name}}");
 {{~ if $field.rtype != "void" ~}}
-    return _{{$field.name}}({{$argNameStr}});
+    return _{{$field.name}}({{func_callMethodArgs $field}});
 {{~ else ~}}
-    _{{$field.name}}({{$argNameStr}});
+    _{{$field.name}}({{func_callMethodArgs $field}});
 {{~ end ~}}
 }
 {{~ end ~}}

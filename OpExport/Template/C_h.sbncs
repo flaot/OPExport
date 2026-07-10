@@ -5,17 +5,39 @@ License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 **/
 {{~
     gDefine = { 
-        Prefix: "OP_", #导出OP函数的前缀名称
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
     } 
 ~}}
 {{~
-func func_switchType(typeStr)
-    if typeStr == "libop*"
+func func_switchType(varType)
+    if varType == gDefine.ObjType
         ret "void*"
+    else if varType == "long"
+        ret "int"
+    else if varType == "long*"
+        ret "int*"
+    else if varType == "LONG_PTR"
+        ret "intptr_t"
+    else if varType == "size_t"
+        ret "uintptr_t"
+    else if varType == "unsigned long*"
+        ret "uint32_t*"
     else
-        ret typeStr
+        ret varType
     end
 end    
+
+#返回函数参数声明
+func func_methodDefArgs(varField)
+    $tempArgs = []
+    for $arg in varField.args
+        if $arg.rtype != 5
+            $tempArgs = $tempArgs | array.add ((func_switchType $arg.type) + " " + $arg.name)
+        end
+    end
+    ret $tempArgs | array.join ", "
+end
 ~}}
 
 #ifndef LIBOP_EXPORT_H
@@ -26,18 +48,11 @@ end
 #undef SetWindowText
 
 /* 加载dll成功返回1；反之，为0*/
-int {{gDefine.Prefix}}LoadDll(wchar_t *dllPath);
+int {{gDefine.Prefix}}LoadDll(const wchar_t* dllPath);
 /*主动卸载dll*/
 void {{gDefine.Prefix}}UnLoadDll();
 
 {{~ for $field in libOP.functions ~}}
-{{~
-    $argStrArray = []
-    for $arg in $field.args
-        $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
-    end
-    $argStr = $argStrArray | array.join ", "
-~}}
 /**\brief {{$field.annotation}}
 {{~ $num = ($field.args | array.size) - 2 ~}}
 {{~ if $num >= 0 ~}}
@@ -50,6 +65,6 @@ void {{gDefine.Prefix}}UnLoadDll();
 *\\return {{$field.rtype}} {{$field.rannotation | string.replace "\n" " "}}
 {{~ end ~}}
 */
-{{func_switchType $field.rtype}} {{$field.name}}({{$argStr}});
+{{func_switchType $field.rtype}} {{$field.name}}({{func_methodDefArgs $field}});
 {{~ end ~}}
 #endif // !LIBOP_EXPORT_H

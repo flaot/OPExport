@@ -5,54 +5,116 @@ License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 **/
 {{~
     gDefine = { 
-        Prefix: "OP_", #导出OP函数的前缀名称
-        ObjName: "_op", #插入的对象名称
-        PStr: "_pStr", #插入的字符串指针名称
-        PStrSize: "_nSize", #插入的字符串指针长度名称
-        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
-        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
+        ObjName: "handle", #插入的对象名称
+        CreateFunc: "OpCreate", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OpDestroy", #导出函数需要的对象释放函数名称
     } 
 ~}}
 {{~
-func func_switchType(typeStr)
-    if typeStr == "libop*"
+func func_switchType(varType)
+    if varType == gDefine.ObjType
         ret "void*"
+    else if varType == "long"
+        ret "int"
+    else if varType == "long*"
+        ret "int*"
+    else if varType == "LONG_PTR"
+        ret "intptr_t"
+    else if varType == "size_t"
+        ret "uintptr_t"
+    else if varType == "unsigned long*"
+        ret "uint32_t*"
     else
-        ret typeStr
+        ret varType
     end
 end    
-#生成方法定义
+#返回函数参数声明
+func func_methodDefArgs(varField)
+    $tempArgs = []
+    for $arg in varField.args
+        if $arg.rtype != 5
+            $tempArgs = $tempArgs | array.add ((func_switchType $arg.type) + " " + $arg.name)
+        end
+    end
+    ret $tempArgs | array.join ", "
+end
+#func_getRetArg 获取返回参数
+func func_getRetArg(varOMethod)
+    $tempArg = null
+    for $arg in varOMethod.args
+        if $arg.rtype == 4
+            $tempArg = $arg
+            break
+        end
+    end
+    ret $tempArg
+end
+#更改方法签名，将参数中的返回值改为返回值的类型判断
+func func_switchRtnTypeCheck(varType)
+    case varType
+    when "long*" 
+        ret "long"
+    when "std::wstring&" 
+        ret "std::wstring"
+    when "LONG_PTR*" 
+         ret "LONG_PTR"
+    when "float*" 
+        ret "float"
+    when "double*" 
+        ret "double"
+    when "int64_t*" 
+        ret "int64_t"
+    when "size_t*" 
+        ret "uintptr_t"
+    else 
+        ret varType
+    end
+end
+#根据原始定义生成方法定义
 func func_genFunc(dllFunc)
     $exMethod = (_func_methodByFunction dllFunc.name)
     if dllFunc.name == gDefine.CreateFunc || dllFunc.name == gDefine.ReleaseFunc 
         ret dllFunc
     end
-    $findArg = null
-    if ($exMethod.args | array.size) > 0
-        $findTemp = $exMethod.args | array.last
-        if $findTemp.rtype == 4
-            $findArg = $findTemp
-        end
-    end
+    #转移返回参数
+    $findArg = func_getRetArg $exMethod
     if $findArg != null
-        if $findArg.type == "long*"
-            $exMethod.rtype = "long";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
-            end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        $retType = (func_switchRtnTypeCheck $findArg.type)
+        $exMethod.rtype = $retType;
+        if !($findArg.annotation | string.empty)
+            $exMethod.annotation = $findArg.annotation;
         end
-        if $findArg.type == "std::wstring&"
-            $exMethod.rtype = "std::wstring";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
+        $rIndex = -1
+        for $arg in $exMethod.args
+            $rIndex = $rIndex + 1
+            if $arg.rtype == 4
+                break
             end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        _func_argsRemoveAt $exMethod.args $rIndex
+    end
+    #去除隐藏参数
+    if $exMethod.args | array.size > 0
+        for $i in (0..(($exMethod.args | array.size) - 1)) reversed
+            if $exMethod.args[$i].rtype == 5
+                _func_argsRemoveAt $exMethod.args $i
+            end
         end
     end
     ret $exMethod
+end
+
+#返回调用函数参数
+func func_callMethodArgs(varField)
+    $tempArgs = []
+    for $arg in varField.args
+        if $arg.rtype != 5
+            $tempArgs = $tempArgs | array.add $arg.name
+        end
+    end
+    ret $tempArgs | array.join ", "
 end
 ~}}
 
@@ -69,20 +131,12 @@ libop::libop()
 {{~ for $field in libOP.functions ~}}
     _{{$field.name}} = nullptr;
 {{~ end ~}}
-    {{gDefine.PStr}} = nullptr;
-    {{gDefine.PStrSize}} = 0;
     {{gDefine.ObjName}} = {{gDefine.CreateFunc}}();
 }
 libop::~libop()
 {
     {{gDefine.ReleaseFunc}}({{gDefine.ObjName}});
     {{gDefine.ObjName}} = nullptr;
-    if({{gDefine.PStrSize}} > 0)
-    {
-        free({{gDefine.PStr}});
-        {{gDefine.PStr}} = nullptr;
-        {{gDefine.PStrSize}} = 0;
-    }
 }
 bool libop::LoadDll(const std::wstring &dllPath)
 {
@@ -99,38 +153,14 @@ void libop::UnLoadDll()
 }
 {{~ for $field in libOP.functions ~}}
 {{~ $showFunc = func_genFunc $field ~}}
-{{~
-$argStrArray = []
-for $arg in $showFunc.args
-    $argStrArray = $argStrArray | array.add ((func_switchType $arg.type) + " " + $arg.name)
-end
-$argStr = $argStrArray | array.join ", "
-~}}
-{{~ if $showFunc.rtype == "std::wstring" ~}}
-std::wstring libop::{{$showFunc.name}}({{$argStr}})
+{{func_switchType $showFunc.rtype}} libop::{{$showFunc.name}}({{func_methodDefArgs $showFunc}})
 {
     if(_{{$field.name}} == nullptr)
         _{{$field.name}} = (p{{$field.name}}Func)GetProcAddress(_hinst, "{{$field.name}}");
-    int _size = _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
-    if (_size > 0)
-    {
-        if ({{gDefine.PStrSize}} > 0) free({{gDefine.PStr}});
-        {{gDefine.PStr}} = (wchar_t *)malloc({{gDefine.PStrSize}} = _size);
-        _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
-    }
-    std::wstring wstr = {{gDefine.PStr}};
-    return wstr;
+    {{~ if $field.rtype != "void" ~}}
+    return _{{$field.name}}({{func_callMethodArgs $field}});
+    {{~ else ~}}
+    _{{$field.name}}({{func_callMethodArgs $field}});
+    {{~ end ~}}
 }
-{{~ else ~}}
-{{func_switchType $showFunc.rtype}} libop::{{$showFunc.name}}({{$argStr}})
-{
-    if(_{{$field.name}} == nullptr)
-        _{{$field.name}} = (p{{$field.name}}Func)GetProcAddress(_hinst, "{{$field.name}}");
-{{~ if $field.rtype != "void" ~}}
-    return _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
-{{~ else ~}}
-    _{{$field.name}}({{$field.args | array.map "name" | array.join ", "}});
-{{~ end ~}}
-}
-{{~ end ~}}
 {{~ end ~}}

@@ -110,8 +110,6 @@ func func_switchRtnTypeCheck(varType)
           ret "IntPtr"
       when "float*" 
           ret "float"
-      when "float*" 
-          ret "float"
       when "double*" 
           ret "double"
       when "int64_t*" 
@@ -144,9 +142,13 @@ func func_getRetArg(varOMethod)
     ret $tempArg
 end
 
-#生成方法定义
+#根据原始定义生成方法定义
 func func_genFunc(dllFunc)
     $exMethod = (_func_methodByFunction dllFunc.name)
+    if dllFunc.name == gDefine.CreateFunc || dllFunc.name == gDefine.ReleaseFunc 
+        ret dllFunc
+    end
+    #转移返回参数
     $findArg = func_getRetArg $exMethod
     if $findArg != null
         $retType = (func_switchRtnTypeCheck $findArg.type)
@@ -162,6 +164,14 @@ func func_genFunc(dllFunc)
             end
         end
         _func_argsRemoveAt $exMethod.args $rIndex
+    end
+    #去除隐藏参数
+    if $exMethod.args | array.size > 0
+        for $i in (0..(($exMethod.args | array.size) - 1)) reversed
+            if $exMethod.args[$i].rtype == 5
+                _func_argsRemoveAt $exMethod.args $i
+            end
+        end
     end
     ret $exMethod
 end
@@ -259,10 +269,8 @@ public partial class OpSoft: IDisposable, IComparable<OpSoft>
 {{~ #生成方法
 $argStrArray = []
  for $a in $showFunc.args
-    if $a.rtype != 5 && $a.rtype != 4
-        $temp = (func_switchArgType $a.type $a.rtype) + " " + (func_safeName $a.name)
-        $argStrArray = $argStrArray | array.add $temp
-    end
+    $temp = (func_switchArgType $a.type $a.rtype) + " " + (func_safeName $a.name)
+    $argStrArray = $argStrArray | array.add $temp
  end 
 $showArgs = ($argStrArray | array.join ", ")
 

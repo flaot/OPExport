@@ -114,7 +114,7 @@ func func_functionCallArgNameStrByMem(oMethod)
         if $arg.type == "const wchar_t*"
             $argNameStrArray = $argNameStrArray | array.add "safe_text("+$arg.name+")"
         else if $arg.type == "LONG_PTR"
-            $argNameStrArray = $argNameStrArray | array.add "static_cast<LONG_PTR>("+$arg.name+")"
+            $argNameStrArray = $argNameStrArray | array.add $arg.name
         else if ($arg.type | string.ends_with "*") && !($arg.type | string.starts_with "const") && $arg.type != "void*"
             $argNameStrArray = $argNameStrArray | array.add $arg.name;
         else
@@ -152,7 +152,11 @@ func func_functionCallArgNameStrByMem(oMethod)
         {{$arg.type | string.remove_last '*'}} _{{$arg.name}} = {};
 {{~ end ~}}
 {{~ end ~}}
-        op.{{varOMethod.name}}({{func_functionCallArgNameStr varOMethod bDefineRet}}); 
+{{~ if bDefineRet ~}}
+        {{gDefine.ObjName}}->op.{{varOMethod.name}}({{func_functionCallArgNameStr varOMethod bDefineRet}});
+{{~ else ~}}
+        op.{{varOMethod.name}}({{func_functionCallArgNameStr varOMethod bDefineRet}});
+{{~ end ~}}
 {{~ for $arg in varOMethod.args ~}}
 {{~ if $arg.rtype == 2 || $arg.rtype == 3 ~}}
         out_value({{$arg.name}}, _{{$arg.name}});
@@ -373,13 +377,13 @@ void OP_CALL {{gDefine.ReleaseFunc}}({{gDefine.ObjType}} {{gDefine.ObjName}}) {
     {{~ $firstArg = $oMethod.args | array.first ~}}
     if (!{{$lastArg.name}})
         return 0;
-    return call_memory({{gDefine.ObjName}}, {{$firstArg.name}}, [&](ProcessMemory &mem, {{func_switchType $firstArg.type}} {{$firstArg.name}}) { 
+    return call_memory({{gDefine.ObjName}}, {{$firstArg.name}}, [&](ProcessMemory &mem, HWND {{$firstArg.name}}) { 
         return mem.{{$oMethod.name}}({{func_functionCallArgNameStrByMem $oMethod}}); 
     });
 {{~ #写内存函数 ~}}
 {{~ else if (["WriteInt", "WriteFloat", "WriteDouble"] | array.contains $showFunc.name) ~}}
     {{~ $firstArg = $oMethod.args | array.first ~}}
-    return call_memory({{gDefine.ObjName}}, {{$firstArg.name}}, [&](ProcessMemory &mem, {{func_switchType $firstArg.type}} {{$firstArg.name}}) { 
+    return call_memory({{gDefine.ObjName}}, {{$firstArg.name}}, [&](ProcessMemory &mem, HWND {{$firstArg.name}}) { 
         return mem.{{$oMethod.name}}({{func_functionCallArgNameStrByMem $showFunc}}) != 0; 
     });
 {{~ #FindPic未找到返回值为-1 ~}}
@@ -394,7 +398,7 @@ void OP_CALL {{gDefine.ReleaseFunc}}({{gDefine.ObjType}} {{gDefine.ObjName}}) {
         return -1;
     }
 {{~ else if $field.rtype == "const wchar_t*" ~}}
-    return call_string({{gDefine.ObjName}}, [](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
+    return call_string({{gDefine.ObjName}}, [&](op::Op &op, {{$retArg.type}} {{$retArg.name}}) { 
         {{~func_functionBody $field $oMethod false ~}}
     });
 {{~ else if $field.rtype == "long" && $retArg != null ~}}
