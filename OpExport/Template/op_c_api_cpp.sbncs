@@ -1,4 +1,4 @@
-{{~ _func_setOutFileExtension ".cpp" ~}}
+{{~ _func_setOutFileName "op_c_api.cpp" ~}}
 /**
 This is an automatically generated class by OpExport. Please do not modify it.
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE 

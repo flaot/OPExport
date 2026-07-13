@@ -1,4 +1,4 @@
-{{~ _func_setOutFileExtension ".md" ~}}
+{{~ _func_setOutFileName "Help.md" ~}}
 {{~
     gDefine = { 
         CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称

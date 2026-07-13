@@ -31,9 +31,9 @@ namespace OpExport
                 Console.WriteLine("[Error] no found template file:" + option.Template);
                 return;
             }
-            if (string.IsNullOrWhiteSpace(option.OutFile))
+            if (string.IsNullOrWhiteSpace(option.OutDir))
             {
-                Console.WriteLine("[Error] out file is null");
+                Console.WriteLine("[Error] out dir is null");
                 return;
             }
 
@@ -53,14 +53,14 @@ namespace OpExport
             }
 
             //解析模版
-            string fileExtension = string.Empty;
+            string fileName = string.Empty;
             var templateContext = File.ReadAllText(option.Template);
             var tpl = Template.Parse(templateContext);
             var scriptObject1 = new ScriptObject();
             scriptObject1["libOP"] = libOP;
             scriptObject1.Import("_func_methodByFunction", libOP.MethodByFunction);
             scriptObject1.Import("_func_argsRemoveAt", (List<Arg> a, int index) => a.RemoveAt(index));
-            scriptObject1.Import("_func_setOutFileExtension", (string extension) => { fileExtension = extension.StartsWith(".") ? extension : '.' + extension; });
+            scriptObject1.Import("_func_setOutFileName", (string name) => { fileName = name; });
 
             //应用模版
             var context = new TemplateContext();
@@ -72,12 +72,8 @@ namespace OpExport
             string codeContext = tpl.Render(context);
 
             //保存到文件
-            string outFile = Path.GetFullPath(option.OutFile);
-            string folder = Path.GetDirectoryName(outFile);
-            if (!Directory.Exists(folder))
-                Directory.CreateDirectory(folder);
-            if (!string.IsNullOrWhiteSpace(fileExtension) && Path.GetExtension(outFile) != fileExtension)
-                outFile += fileExtension;
+            Directory.CreateDirectory(option.OutDir);
+            string outFile = Path.Combine(option.OutDir, fileName);
             Console.WriteLine("[Log] out file:" + outFile);
             File.WriteAllText(outFile, codeContext);
         }

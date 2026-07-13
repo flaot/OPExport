@@ -16,8 +16,8 @@ namespace OpExport
         [OptionalArgument("", "t", "Tempalte File")]
         public string Template { get; set; }
 
-        [OptionalArgument("", "out", "Output File")]
-        public string OutFile { get; set; }
+        [OptionalArgument("", "out", "Output Dir")]
+        public string OutDir { get; set; }
 
         [OptionalArgument(false, "doc", "Apply github document by OP")]
         public bool Document { get; set; }

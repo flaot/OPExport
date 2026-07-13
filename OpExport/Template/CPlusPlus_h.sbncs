@@ -1,4 +1,4 @@
-{{~ _func_setOutFileExtension ".h" ~}}
+{{~ _func_setOutFileName "opSoft.h" ~}}
 /**
 This is an automatically generated class by OpExport. Please do not modify it.
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
@@ -121,8 +121,8 @@ end
 ~}}
 
 #pragma once
-#ifndef LIBOP_EXPORT_H
-#define LIBOP_EXPORT_H
+#ifndef OP_SOFT_H
+#define OP_SOFT_H
 
 {{~ for $field in libOP.functions ~}}
 {{~ $str = func_typedefArg $field ~}}
@@ -136,11 +136,11 @@ typedef {{func_switchType $field.rtype}}(*p{{$field.name}}Func)({{$str}});
 #undef FindWindowEx
 #undef SetWindowText
 
-class libop
+class opSoft
 {
     public:
-        libop();
-        ~libop();
+        opSoft();
+        ~opSoft();
         /* 加载dll成功返回true；反之，为false*/
         static bool LoadDll(const std::wstring &dllPath);
         /*主动卸载dll*/
@@ -173,4 +173,4 @@ class libop
         p{{$field.name}}Func _{{$field.name}};
 {{~ end ~}}
 };
-    #endif // !LIBOP_EXPORT_H
+    #endif // !OP_SOFT_H

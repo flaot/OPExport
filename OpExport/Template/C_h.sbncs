@@ -1,4 +1,4 @@
-{{~ _func_setOutFileExtension ".h" ~}}
+{{~ _func_setOutFileName "opSoft.h" ~}}
 /**
 This is an automatically generated class by OpExport. Please do not modify it.
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
@@ -40,8 +40,8 @@ func func_methodDefArgs(varField)
 end
 ~}}
 
-#ifndef LIBOP_EXPORT_H
-#define LIBOP_EXPORT_H
+#ifndef OP_SOFT_H
+#define OP_SOFT_H
 
 #undef FindWindow
 #undef FindWindowEx
@@ -67,4 +67,4 @@ void {{gDefine.Prefix}}UnLoadDll();
 */
 {{func_switchType $field.rtype}} {{$field.name}}({{func_methodDefArgs $field}});
 {{~ end ~}}
-#endif // !LIBOP_EXPORT_H
+#endif // !OP_SOFT_H

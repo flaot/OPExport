@@ -1,4 +1,4 @@
-{{~ _func_setOutFileExtension ".cpp" ~}}
+{{~ _func_setOutFileName "opSoft.cpp" ~}}
 /**
 This is an automatically generated class by OpExport. Please do not modify it.
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
@@ -118,27 +118,27 @@ func func_callMethodArgs(varField)
 end
 ~}}
 
-#include "libopExport.h"
+#include "opSoft.h"
 
 #undef FindWindow
 #undef FindWindowEx
 #undef SetWindowText
 
-HMODULE libop::_hinst = nullptr;
+HMODULE opSoft::_hinst = nullptr;
 
-libop::libop()
+opSoft::opSoft()
 {
 {{~ for $field in libOP.functions ~}}
     _{{$field.name}} = nullptr;
 {{~ end ~}}
     {{gDefine.ObjName}} = {{gDefine.CreateFunc}}();
 }
-libop::~libop()
+opSoft::~opSoft()
 {
     {{gDefine.ReleaseFunc}}({{gDefine.ObjName}});
     {{gDefine.ObjName}} = nullptr;
 }
-bool libop::LoadDll(const std::wstring &dllPath)
+bool opSoft::LoadDll(const std::wstring &dllPath)
 {
     _hinst = LoadLibraryW(dllPath.c_str());
     if (nullptr == _hinst)
@@ -146,14 +146,14 @@ bool libop::LoadDll(const std::wstring &dllPath)
     else
         return true;
 }
-void libop::UnLoadDll()
+void opSoft::UnLoadDll()
 {
     FreeLibrary(_hinst);
     _hinst = nullptr;
 }
 {{~ for $field in libOP.functions ~}}
 {{~ $showFunc = func_genFunc $field ~}}
-{{func_switchType $showFunc.rtype}} libop::{{$showFunc.name}}({{func_methodDefArgs $showFunc}})
+{{func_switchType $showFunc.rtype}} opSoft::{{$showFunc.name}}({{func_methodDefArgs $showFunc}})
 {
     if(_{{$field.name}} == nullptr)
         _{{$field.name}} = (p{{$field.name}}Func)GetProcAddress(_hinst, "{{$field.name}}");

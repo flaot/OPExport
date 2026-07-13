@@ -1,4 +1,4 @@
-{{~ _func_setOutFileExtension ".go" ~}}
+{{~ _func_setOutFileName "OpSoft.go" ~}}
 /*
 This is an automatically generated file by OpExport. Please do not modify it.
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE

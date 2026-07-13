@@ -1,16 +1,16 @@
-{{~ _func_setOutFileExtension ".java" ~}}
+{{~ _func_setOutFileName "OpSoft.java" ~}}
 /**
 This is an automatically generated class by OpExport. Please do not modify it.
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
 **/
 {{~
     gDefine = { 
-        Prefix: "OP_", #导出OP函数的前缀名称
-        ObjName: "_op", #插入的对象名称
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjName: "handle", #插入的对象名称
         PStr: "_pStr", #插入的字符串指针名称
         PStrSize: "_nSize", #插入的字符串指针长度名称
-        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
-        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+        CreateFunc: "OpCreate", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OpDestroy", #导出函数需要的对象释放函数名称
         Inst: "_inst",
 
         DllPath: "op",

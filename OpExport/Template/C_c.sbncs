@@ -1,4 +1,4 @@
-{{~ _func_setOutFileExtension ".c" ~}}
+{{~ _func_setOutFileName "opSoft.c" ~}}
 /**
 This is an automatically generated class by OpExport. Please do not modify it.
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE 
@@ -62,7 +62,7 @@ func func_callMethodArgs(varField)
 end
 ~}}
 
-#include "libopExport.h"
+#include "opSoft.h"
 #include <windows.h>
 
 #undef FindWindow

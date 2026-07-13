@@ -75,9 +75,10 @@ _func_methodByFunction [funcName:str]
 _func_argsRemoveAt [args:List<Arg>] [index:int]
     ret [void]
 
-# 设置输出文件后缀名
-_func_setOutFileExtension [extension:str]
+# 设置输出文件名
+_func_setOutFileName [fileName:str]
     ret [void]
+
 ```  
 
 ### 输出示例
