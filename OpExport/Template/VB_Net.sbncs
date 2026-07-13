@@ -3,14 +3,14 @@
 ' License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 {{~
     gDefine = { 
-        Prefix: "OP_", #导出OP函数的前缀名称
-        ObjName: "_op", #插入的对象名称
-        PStr: "_pStr", #插入的字符串指针名称
-        PStrSize: "_nSize", #插入的字符串指针长度名称
-        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
-        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
+        ObjName: "handle", #插入的对象名称
+        CreateFunc: "OpCreate", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OpDestroy", #导出函数需要的对象释放函数名称
 
-        DllPath: "op",
+        Dll32Path: "./Dll/op_c_api_x86.dll",
+        Dll64Path: "./Dll/op_c_api_x64.dll",
     } 
 ~}}
 {{~
@@ -19,7 +19,7 @@ func func_switchType(varType)
     case varType
         when "wchar_t*" 
             ret "IntPtr"
-        when "libop*" 
+        when gDefine.ObjType
             ret "IntPtr"
         when "const wchar_t*" 
             ret "String"
@@ -31,16 +31,36 @@ func func_switchType(varType)
             ret "IntPtr"
         when "char*" 
             ret "String"
+        when "size_t" 
+            ret "IntPtr"
         when "size_t*" 
             ret "IntPtr"
         when "void*" 
             ret "IntPtr"
         when "std::wstring" 
             ret "String"
+        when "LONG_PTR" 
+            ret "IntPtr"
+        when "unsigned long" 
+            ret "UInteger"
+        when "unsigned long*" 
+            ret "IntPtr"
         when "int" 
             ret "Integer"
         when "double" 
             ret "Double"
+        when "float" 
+            ret "Single"
+        when "float*" 
+            ret "IntPtr"
+        when "double*" 
+            ret "IntPtr"
+        when "int64_t" 
+            ret "Long"
+        when "int64_t*" 
+            ret "IntPtr"
+        when "const void*" 
+            ret "IntPtr"
         else 
             ret varType
     end
@@ -56,6 +76,18 @@ func func_switchArgType(varType, refType)
             ret "Integer"
         when "long*" 
             ret "Integer"
+        when "char*" 
+            ret "String"
+        when "size_t*" 
+            ret "IntPtr"
+        when "unsigned long*" 
+            ret "UInteger"
+        when "float*" 
+            ret "Single"
+        when "double*" 
+            ret "Double"
+        when "int64_t*" 
+            ret "Long"
         else 
             ret $type
     end
@@ -63,6 +95,25 @@ end
 #转换返回类型
 func func_switchRtnType(varType)
     ret (func_switchArgType varType 4)
+end
+#更改方法签名，将参数中的返回值改为返回值的类型判断
+func func_switchRtnTypeCheck(varType)
+case varType
+  when "long*" 
+        ret "long"
+  when "std::wstring&" 
+      ret "std::wstring"
+  when "LONG_PTR*" 
+      ret "LONG_PTR"
+  when "float*" 
+      ret "float"
+  when "double*" 
+      ret "double"
+  when "int64_t*" 
+      ret "int64_t"
+  else 
+      ret varType
+end
 end
 #转换引用类型
 func func_switchRefType(refType)
@@ -74,49 +125,84 @@ func func_switchRefType(refType)
         ret ""
     end
 end
-#生成方法定义
-func func_genFunc(dllFunc)
-    $exMethod = (_func_methodByFunction dllFunc.name)
-    $findArg = null
-    if ($exMethod.args | array.size) > 0
-        $findTemp = $exMethod.args | array.last
-        if $findTemp.rtype == 4
-            $findArg = $findTemp
+#组合定义类型
+func func_mergeArgTypeByDefine(argArray)
+    $argStrArray = []
+    for $arg in argArray
+        if $arg.rtype != 5
+            $temp = (func_switchRefType $arg.rtype) + (func_safeName $arg.name) + " As " + (func_switchArgType $arg.type $arg.rtype) 
+            $argStrArray = $argStrArray | array.add $temp
         end
     end
-    if $findArg != null
-        if $findArg.type == "long*"
-            $exMethod.rtype = "long";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
-            end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+    ret ($argStrArray | array.join ", ")
+end
+
+#func_getRetArg 获取返回参数
+func func_getRetArg(varOMethod)
+    $tempArg = null
+    for $arg in varOMethod.args
+        if $arg.rtype == 4
+            $tempArg = $arg
+            break
         end
-        if $findArg.type == "std::wstring&"
-            $exMethod.rtype = "std::wstring";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
+    end
+    ret $tempArg
+end
+#根据原始定义生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    if dllFunc.name == gDefine.CreateFunc || dllFunc.name == gDefine.ReleaseFunc 
+        ret dllFunc
+    end
+    #转移返回参数
+    $findArg = func_getRetArg $exMethod
+    if $findArg != null
+        $retType = (func_switchRtnTypeCheck $findArg.type)
+        $exMethod.rtype = $retType;
+        if !($findArg.annotation | string.empty)
+            $exMethod.annotation = $findArg.annotation;
+        end
+        $rIndex = -1
+        for $arg in $exMethod.args
+            $rIndex = $rIndex + 1
+            if $arg.rtype == 4
+                break
             end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        _func_argsRemoveAt $exMethod.args $rIndex
+    end
+    #去除隐藏参数
+    if $exMethod.args | array.size > 0
+        for $i in (0..(($exMethod.args | array.size) - 1)) reversed
+            if $exMethod.args[$i].rtype == 5
+                _func_argsRemoveAt $exMethod.args $i
+            end
         end
     end
     ret $exMethod
 end
-
+#将关键字参数名重命名为安全名称
+func func_safeName(name)
+    if name == "lock"
+        ret name + "_"
+    end
+    ret name
+end
 ~}}
 
 Imports System.Runtime.InteropServices
+#Const USE_X86 = False
 
 Partial Public Class OpSoft
     Implements IDisposable
     Implements IComparable(Of OpSoft)
-    Const DLL_NAME As String = "{{gDefine.DllPath}}"
+#If USE_X86 Then
+    Const DLL_NAME As String = "{{gDefine.Dll32Path}}"
+#Else
+    Const DLL_NAME As String = "{{gDefine.Dll64Path}}"
+#End If
 
     Private {{gDefine.ObjName}} As IntPtr ' 非托管资源
-    Private {{gDefine.PStr}} As IntPtr = IntPtr.Zero
-    Private {{gDefine.PStrSize}} As Integer = 0
 
 #Region "Dispose"
     Private disposed As Boolean = False   ' 是否已经释放资源的标志
@@ -131,13 +217,8 @@ Partial Public Class OpSoft
         If Not disposed Then
             If disposing Then
             End If
-            OP_ReleaseOP({{gDefine.ObjName}})
+            {{gDefine.ReleaseFunc}}({{gDefine.ObjName}})
             {{gDefine.ObjName}} = IntPtr.Zero
-            If {{gDefine.PStrSize}} > 0 Then
-                Marshal.FreeHGlobal({{gDefine.PStr}})
-                {{gDefine.PStr}} = IntPtr.Zero
-                {{gDefine.PStrSize}} = 0
-            End If
             disposed = True
         End If
     End Sub
@@ -145,6 +226,16 @@ Partial Public Class OpSoft
         Dispose(True)
         GC.SuppressFinalize(Me)
     End Sub
+    Private Function _PtrToString(ptr As IntPtr) As String
+        If ptr = IntPtr.Zero Then
+            Return String.Empty
+        End If
+        Dim str As String = Marshal.PtrToStringUni(ptr)
+        If str = Nothing Then
+            Return String.Empty
+        End If
+        Return str
+    End Function
 #End Region
 #Region "Overroid"
     Public Overrides Function Equals(ByVal obj As Object) As Boolean
@@ -197,84 +288,50 @@ Partial Public Class OpSoft
 {{~ #生成方法
 $argStrArray = []
 for $a in $showFunc.args
-    $name = $a.name
-    if $name == $showFunc.name
-            $name = "_" + $name
-    end
-    $temp = (func_switchRefType $a.rtype) + "" + $name + " As " + (func_switchArgType $a.type $a.rtype)
+    $temp =  (func_switchRefType $a.rtype)+ "" + (func_safeName $a.name) + " As " + (func_switchArgType $a.type $a.rtype)
     $argStrArray = $argStrArray | array.add $temp
 end 
 $showArgs = ($argStrArray | array.join ", ")
 
 $callNames = []
 for $arg in $field.args
-    $findItem = null
-    for $showArg in $showFunc.args
-        if $showArg.name == $arg.name
-            $findItem = $showArg
-            break
-        end
+    if $arg.rtype != 5 && $arg.rtype != 4
+        $callNames = $callNames | array.add (func_safeName $arg.name)
     end
-    $name = $arg.name
-    if $name == $showFunc.name
-        $name = "_" + $name
-    end
-    if $findItem == null
-        $callNames = $callNames | array.add $name
-    else
-        if $findItem.type | string.starts_with "ref "
-            $callNames = $callNames | array.add ("ref " + $name)
-        else if $findItem.type | string.starts_with "out "
-            $callNames = $callNames | array.add ("out " + $name)
-        else
-            $callNames = $callNames | array.add $name
-        end
-    end
+end
 
+$bString = false
+$showRtnType = func_switchRtnType $field.rtype
+if $showRtnType == "String" 
+    $bString = true
 end
  ~}}
-{{~ if $showFunc.rtype == "std::wstring" ~}}
-    Public Function {{$showFunc.name}}({{$showArgs}}) As {{func_switchRtnType $showFunc.rtype}}
-        Dim _size As Integer = {{$field.name}}({{$callNames | array.join ", "}})
-        If _size > 0 Then
-            If {{gDefine.PStrSize}} > 0 Then Marshal.FreeHGlobal({{gDefine.PStr}})
-            {{gDefine.PStrSize}} = _size
-            {{gDefine.PStr}} = Marshal.AllocHGlobal({{gDefine.PStrSize}})
-            {{$field.name}}({{$callNames | array.join ", "}})
-        End If
-        Dim str As String = Marshal.PtrToStringUni({{gDefine.PStr}})
-        Return str
-    End Function
-{{~ else ~}}
-{{~ if $showFunc.rtype == "void" ~}}
+{{~ if $field.rtype == "void" ~}}
     Public Sub {{$showFunc.name}}({{$showArgs}})
         {{$field.name}}({{$callNames | array.join ", "}})
     End Sub
 {{~ else ~}}
     Public Function {{$showFunc.name}}({{$showArgs}}) As {{func_switchRtnType $showFunc.rtype}}
+    {{~ if $bString ~}}
+        Return _PtrToString({{$field.name}}({{$callNames | array.join ", "}}))
+    {{~ else ~}}
         Return {{$field.name}}({{$callNames | array.join ", "}})
+    {{~ end ~}}
     End Function
 {{~ end ~}}
-{{~ end -}}
 
 {{~ end ~}}
 {{~ end ~}}
 #Region "DLL Import Define"
 {{~ for $field in libOP.functions ~}}
-{{~
-    $argArray = []
-    for $arg in $field.args
-        $tempStr = (func_switchRefType $arg.rtype) + $arg.name + " As " + (func_switchArgType $arg.type $arg.rtype)
-        $argArray = $argArray | array.add $tempStr
-    end
-    $argStr = $argArray | array.join ", "
-~}}
-    <DllImport(DLL_NAME, CharSet:=CharSet.Unicode, CallingConvention:=CallingConvention.Cdecl)>
+    <DllImport(DLL_NAME, CharSet:=CharSet.Unicode, CallingConvention:=CallingConvention.StdCall)>
 {{~ if $field.rtype == "void" ~}}
-    Private Shared Sub {{$field.name}}({{$argStr}})
+    Private Shared Sub {{$field.name}}({{func_mergeArgTypeByDefine $field.args}})
     End Sub
 {{~ else ~}}
-    Private Shared Function {{$field.name}}({{$argStr}}) As {{func_switchRtnType $field.rtype}}
+{{~ $rtnTempType = func_switchRtnType $field.rtype ~}}
+{{~ if $rtnTempType == "String"; $rtnTempType = "IntPtr"; end ~}}
+    Private Shared Function {{$field.name}}({{func_mergeArgTypeByDefine $field.args}}) As {{$rtnTempType}}
     End Function
 {{~ end ~}}
 
