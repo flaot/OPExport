@@ -6,14 +6,13 @@ License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 {{~
     gDefine = { 
         Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
         ObjName: "handle", #插入的对象名称
-        PStr: "_pStr", #插入的字符串指针名称
-        PStrSize: "_nSize", #插入的字符串指针长度名称
         CreateFunc: "OpCreate", #导出函数需要的对象创建函数名称
         ReleaseFunc: "OpDestroy", #导出函数需要的对象释放函数名称
         Inst: "_inst",
 
-        DllPath: "op",
+        DllPath: "./Dll/op_c_api_x64.dll",
     } 
 ~}}
 
@@ -23,7 +22,7 @@ func func_switchType(varType)
     case varType
         when "wchar_t*" 
             ret "Pointer"
-        when "libop*" 
+        when gDefine.ObjType
             ret "Pointer"
         when "const wchar_t*" 
             ret "WString"
@@ -35,12 +34,32 @@ func func_switchType(varType)
             ret "IntByReference"
         when "char*" 
             ret "Pointer"
+        when "size_t"
+            ret "Pointer"
         when "size_t*" 
             ret "Pointer"
         when "void*" 
             ret "Pointer"
         when "std::wstring" 
             ret "WString"
+        when "LONG_PTR" 
+            ret "Pointer"
+        when "unsigned long" 
+            ret "uint"
+        when "unsigned long*" 
+            ret "IntByReference"
+        when "float*" 
+            ret "FloatByReference"
+        when "double*" 
+            ret "DoubleByReference"
+        when "int64_t" 
+            ret "long"
+        when "int64_t*" 
+            ret "LongByReference"
+        when "const void*" 
+            ret "Pointer"
+        when "IntPtr"
+            ret "Pointer"
         else 
             ret varType
     end
@@ -60,41 +79,78 @@ end
 func func_switchRtnType(varType)
     ret (func_switchArgType varType 4)
 end
+#更改方法签名，将参数中的返回值改为返回值的类型判断
+func func_switchRtnTypeCheck(varType)
+    case varType
+      when "long*" 
+          ret "long"
+      when "std::wstring&" 
+          ret "std::wstring"
+      when "LONG_PTR*" 
+          ret "IntPtr"
+      when "float*" 
+          ret "float"
+      when "double*" 
+          ret "double"
+      when "int64_t*" 
+          ret "int64_t"
+      else 
+          ret varType
+    end
+end
 #组合定义类型
 func func_mergeArgTypeByDefine(argArray)
     $argStrArray = []
     for $arg in argArray
-        $temp = (func_switchArgType $arg.type $arg.rtype) + " " + $arg.name
-        $argStrArray = $argStrArray | array.add $temp
+        if $arg.rtype != 5
+            $temp = (func_switchArgType $arg.type $arg.rtype) + " " + $arg.name
+            $argStrArray = $argStrArray | array.add $temp
+        end
     end
     ret ($argStrArray | array.join ", ")
 end
-#生成方法定义
-func func_genFunc(dllFunc)
-    $exMethod = (_func_methodByFunction dllFunc.name)
-    $findArg = null
-    if ($exMethod.args | array.size) > 0
-        $findTemp = $exMethod.args | array.last
-        if $findTemp.rtype == 4
-            $findArg = $findTemp
+
+#func_getRetArg 获取返回参数
+func func_getRetArg(varOMethod)
+    $tempArg = null
+    for $arg in varOMethod.args
+        if $arg.rtype == 4
+            $tempArg = $arg
+            break
         end
     end
+    ret $tempArg
+end
+
+#根据原始定义生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    if dllFunc.name == gDefine.CreateFunc || dllFunc.name == gDefine.ReleaseFunc 
+        ret dllFunc
+    end
+    #转移返回参数
+    $findArg = func_getRetArg $exMethod
     if $findArg != null
-        if $findArg.type == "long*"
-            $exMethod.rtype = "long";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
-            end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        $retType = (func_switchRtnTypeCheck $findArg.type)
+        $exMethod.rtype = $retType;
+        if !($findArg.annotation | string.empty)
+            $exMethod.annotation = $findArg.annotation;
         end
-        if $findArg.type == "std::wstring&"
-            $exMethod.rtype = "std::wstring";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
+        $rIndex = -1
+        for $arg in $exMethod.args
+            $rIndex = $rIndex + 1
+            if $arg.rtype == 4
+                break
             end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        _func_argsRemoveAt $exMethod.args $rIndex
+    end
+    #去除隐藏参数
+    if $exMethod.args | array.size > 0
+        for $i in (0..(($exMethod.args | array.size) - 1)) reversed
+            if $exMethod.args[$i].rtype == 5
+                _func_argsRemoveAt $exMethod.args $i
+            end
         end
     end
     ret $exMethod
@@ -102,14 +158,15 @@ end
 ~}}
 import com.sun.jna.*;
 import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.LongByReference;
+import com.sun.jna.ptr.DoubleByReference;
+import com.sun.jna.ptr.FloatByReference;
 
 public class OpSoft implements AutoCloseable, Comparable<OpSoft> {
     private final String DLL_NAME = "{{gDefine.DllPath}}";
     private CLibrary {{gDefine.Inst}} = Native.load(DLL_NAME, CLibrary.class);
 
     private Pointer {{gDefine.ObjName}};
-    private Pointer {{gDefine.PStr}} = Pointer.NULL;
-    private int {{gDefine.PStrSize}} = 0;
 
     public OpSoft() {
         {{gDefine.ObjName}} = {{gDefine.Inst}}.{{gDefine.CreateFunc}}();
@@ -125,12 +182,6 @@ public class OpSoft implements AutoCloseable, Comparable<OpSoft> {
         if ({{gDefine.ObjName}} != Pointer.NULL) {
             {{gDefine.Inst}}.{{gDefine.ReleaseFunc}}({{gDefine.ObjName}});
             {{gDefine.ObjName}} = Pointer.NULL;
-        }
-        if ({{gDefine.PStrSize}} > 0) {
-            Native.free(Pointer.nativeValue({{gDefine.PStr}}));
-            Pointer.nativeValue({{gDefine.PStr}}, 0);
-            {{gDefine.ObjName}} = Pointer.NULL;
-            {{gDefine.PStrSize}} = 0;
         }
         {{gDefine.Inst}} = null;
     }
@@ -184,9 +235,9 @@ public class OpSoft implements AutoCloseable, Comparable<OpSoft> {
 $switchStrList = []
 $argStrArray = []
  for $a in $showFunc.args
-     $a.type = func_switchArgType $a.type $a.rtype
-     $temp = $a.type + " " + $a.name
-     if $a.type == "WString"
+     $tempType = func_switchArgType $a.type $a.rtype
+     $temp = $tempType + " " + $a.name
+     if $tempType == "WString"
         $switchStrList = $switchStrList | array.add $a.name
         $temp = "String " + $a.name
      end
@@ -196,54 +247,25 @@ $showArgs = ($argStrArray | array.join ", ")
 
 $callNames = []
 for $arg in $field.args
-    $findItem = null
-    for $showArg in $showFunc.args
-        if $showArg.name == $arg.name
-            $findItem = $showArg
-            break
-        end
-    end
-    if $findItem == null
-        $callNames = $callNames | array.add $arg.name
-    else
-        if $findItem.type == "WString"
+    if $arg.rtype != 5 && $arg.rtype != 4
+        $tempType = func_switchArgType $arg.type $arg.rtype
+        if $tempType == "WString"
             $callNames = $callNames | array.add ("_w" + $arg.name)
         else
             $callNames = $callNames | array.add $arg.name
         end
     end
-
 end
  ~}}
-{{~ if $showFunc.rtype == "std::wstring" ~}}
-    public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}}) {
-{{~ for $ssitem in $switchStrList ~}}
-        WString _w{{$ssitem}} = new WString({{$ssitem}});
-{{~ end ~}}
-        int _size = {{gDefine.Inst}}.{{$field.name}}({{$callNames | array.join ", "}});
-        if (_size > 0) {
-            if ({{gDefine.PStrSize}} > 0) {
-                Native.free(Pointer.nativeValue({{gDefine.PStr}}));
-                Pointer.nativeValue({{gDefine.PStr}}, 0);
-            }
-            {{gDefine.PStr}} = new Memory({{gDefine.PStrSize}} = _size);
-            {{gDefine.Inst}}.{{$field.name}}({{$callNames | array.join ", "}});
-        }
-        String wideString = {{gDefine.PStr}}.getWideString(0);
-        return wideString;
-    }
-{{~ else ~}}
     public {{func_switchRtnType $showFunc.rtype}} {{$showFunc.name}}({{$showArgs}}) {
 {{~ for $ssitem in $switchStrList ~}}
         WString _w{{$ssitem}} = new WString({{$ssitem}});
 {{~ end ~}}
         return {{gDefine.Inst}}.{{$field.name}}({{$callNames | array.join ", "}});
     }
-{{~ end -}}
-
 {{~ end ~}}
 {{~ end ~}}
-    private interface CLibrary extends Library {
+    private interface CLibrary extends StdCallLibrary  {
 {{~ for $field in libOP.functions ~}}
 
         {{func_switchRtnType $field.rtype}} {{$field.name}}({{func_mergeArgTypeByDefine $field.args}});
