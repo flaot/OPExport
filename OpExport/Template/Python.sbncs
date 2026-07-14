@@ -1,16 +1,15 @@
-{{~ _func_setOutFileName "LibOP.py" ~}}
+{{~ _func_setOutFileName "OpSoft.py" ~}}
 """
 This is an automatically generated class by OpExport. Please do not modify it. 
 License：https://github.com/WallBreaker2/op/blob/master/LICENSE
 """
 {{~
     gDefine = { 
-        Prefix: "OP_", #导出OP函数的前缀名称
-        ObjName: "_op", #插入的对象名称
-        PStr: "_pStr", #插入的字符串指针名称
-        PStrSize: "_nSize", #插入的字符串指针长度名称
-        CreateFunc: "OP_CreateOP", #导出函数需要的对象创建函数名称
-        ReleaseFunc: "OP_ReleaseOP", #导出函数需要的对象释放函数名称
+        Prefix: "Op", #导出OP函数的前缀名称
+        ObjType: "op_handle", #插入的对象类型
+        ObjName: "handle", #插入的对象名称
+        CreateFunc: "OpCreate", #导出函数需要的对象创建函数名称
+        ReleaseFunc: "OpDestroy", #导出函数需要的对象释放函数名称
     } 
 ~}}
 {{~
@@ -19,7 +18,7 @@ func func_switchType(varType)
     case varType
         when "wchar_t*" 
             ret "c_wchar_p"
-        when "libop*" 
+        when gDefine.ObjType
             ret "c_void_p"
         when "const wchar_t*" 
             ret "c_wchar_p"
@@ -29,6 +28,8 @@ func func_switchType(varType)
             ret "c_long"
         when "long*" 
             ret "POINTER(c_long)"
+        when "size_t" 
+            ret "c_size_t"
         when "size_t*" 
             ret "POINTER(c_size_t)"
         when "void*" 
@@ -37,8 +38,30 @@ func func_switchType(varType)
             ret "c_void"
         when "int" 
             ret "c_int"
+        when "float" 
+            ret "c_float"
         when "double" 
             ret "c_double"
+        when "LONG_PTR" 
+            ret "c_size_t"
+        when "unsigned long" 
+            ret "c_ulong"
+        when "unsigned long*" 
+            ret "POINTER(c_uint32)"
+        when "float*" 
+            ret "POINTER(c_float)"
+        when "double*" 
+            ret "POINTER(c_double)"
+        when "int64_t" 
+            ret "c_int64"
+        when "int64_t*" 
+            ret "POINTER(c_int64)"
+        when "const void*" 
+            ret "c_void_p"
+        when "uint32_t"
+            ret "c_uint32"
+        when "uint32_t*"
+            ret "POINTER(c_uint32)"
         else 
             ret varType
     end
@@ -50,6 +73,8 @@ func func_switchArgType(varType, refType)
         ret $type
     end
     case varType
+        when "float" 
+            ret "float"
         when "double" 
             ret "float"
         when "long" 
@@ -66,6 +91,30 @@ func func_switchArgType(varType, refType)
             ret "int|c_long"
         when "std::wstring" 
             ret "str"
+        when "unsigned long*" 
+            ret "int|c_uint32"
+        when "float*" 
+            ret "float|c_float"
+        when "double*" 
+            ret "float|c_double"
+        when "int64_t" 
+            ret "int"
+        when "int64_t*" 
+            ret "int|c_int64"
+        when "uint32_t"
+            ret "int"
+        when "uint32_t*"
+            ret "int|c_uint32"
+        when "std::wstring*"
+            ret "str|c_wchar_p"
+        when "size_t" 
+            ret "int"
+        when "LONG_PTR" 
+            ret "int"
+        when "const void*" 
+            ret "int"
+        when "void*" 
+            ret "int"
         else 
             ret $type
     end
@@ -74,32 +123,68 @@ end
 func func_switchRtnType(varType)
     ret (func_switchArgType varType 4)
 end
-#生成方法定义
-func func_genFunc(dllFunc)
-    $exMethod = (_func_methodByFunction dllFunc.name)
-    $findArg = null
-    if ($exMethod.args | array.size) > 0
-        $findTemp = $exMethod.args | array.last
-        if $findTemp.rtype == 4
-            $findArg = $findTemp
+#更改方法签名，将参数中的返回值改为返回值的类型判断
+func func_switchRtnTypeCheck(varType)
+case varType
+  when "long*" 
+      ret "long"
+  when "std::wstring&" 
+      ret "std::wstring"
+  when "LONG_PTR*" 
+      ret "int"
+  when "float*" 
+      ret "float"
+  when "double*" 
+      ret "float"
+  when "int64_t*" 
+      ret "int"
+  when "size_t*" 
+      ret "int"
+  else 
+      ret varType
+end
+end
+#func_getRetArg 获取返回参数
+func func_getRetArg(varOMethod)
+    $tempArg = null
+    for $arg in varOMethod.args
+        if $arg.rtype == 4
+            $tempArg = $arg
+            break
         end
     end
+    ret $tempArg
+end
+
+#根据原始定义生成方法定义
+func func_genFunc(dllFunc)
+    $exMethod = (_func_methodByFunction dllFunc.name)
+    if dllFunc.name == gDefine.CreateFunc || dllFunc.name == gDefine.ReleaseFunc 
+        ret dllFunc
+    end
+    #转移返回参数
+    $findArg = func_getRetArg $exMethod
     if $findArg != null
-        if $findArg.type == "long*"
-            $exMethod.rtype = "long";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
-            end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        $retType = (func_switchRtnTypeCheck $findArg.type)
+        $exMethod.rtype = $retType;
+        if !($findArg.annotation | string.empty)
+            $exMethod.annotation = $findArg.annotation;
         end
-        if $findArg.type == "std::wstring&"
-            $exMethod.rtype = "std::wstring";
-            if !($findArg.annotation | string.empty)
-                $exMethod.annotation = $findArg.annotation;
+        $rIndex = -1
+        for $arg in $exMethod.args
+            $rIndex = $rIndex + 1
+            if $arg.rtype == 4
+                break
             end
-            $rIndex = ($exMethod.args | array.size) - 1
-            _func_argsRemoveAt $exMethod.args $rIndex
+        end
+        _func_argsRemoveAt $exMethod.args $rIndex
+    end
+    #去除隐藏参数
+    if $exMethod.args | array.size > 0
+        for $i in (0..(($exMethod.args | array.size) - 1)) reversed
+            if $exMethod.args[$i].rtype == 5
+                _func_argsRemoveAt $exMethod.args $i
+            end
         end
     end
     ret $exMethod
@@ -112,8 +197,6 @@ from ctypes import *
 
 class OpSoft:
     def __init__(self, dll_file):
-        self.{{gDefine.PStr}} = c_wchar_p(0)
-        self.{{gDefine.PStrSize}} = c_int()
         self.dll = cdll.LoadLibrary(dll_file)
         self.dll.{{gDefine.CreateFunc}}.restype = c_void_p
         self.{{gDefine.ObjName}} = self.dll.{{gDefine.CreateFunc}}()
@@ -123,8 +206,6 @@ class OpSoft:
         self.dll.{{gDefine.ReleaseFunc}}(self.{{gDefine.ObjName}})
         self.{{gDefine.ObjName}} = None
         self.dll = None
-        self.{{gDefine.PStr}} = None
-        self.{{gDefine.PStrSize}} = None
 {{~ for $field in libOP.functions ~}}
 {{~ 
 if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc
@@ -133,13 +214,17 @@ if $field.name != gDefine.CreateFunc && $field.name != gDefine.ReleaseFunc
 $orgSetTypeArray = []
 $orgArgArray = []
 for $arg in $field.args
-    $orgArgArray = $orgArgArray | array.add (func_switchRtnType $arg.type)
+    if $arg.rtype != 5 && $arg.rtype != 4
+        $orgArgArray = $orgArgArray | array.add (func_switchRtnType $arg.type)
+    end
 end
 if ($orgArgArray | array.size) > 0
     $orgSetTypeArray = $orgSetTypeArray | array.add ("self.dll." + $field.name + ".argtypes = [" + ($orgArgArray | array.join ", ") + "]")
 end
 if $field.rtype != "void"
     $orgSetTypeArray = $orgSetTypeArray | array.add ("self.dll." + $field.name + ".restype = " + (func_switchRtnType $field.rtype))
+else
+    $orgSetTypeArray = $orgSetTypeArray | array.add ("self.dll." + $field.name + ".restype = None")
 end
 
 $showArgs = [] #封装调用参数
@@ -147,27 +232,19 @@ $useArgs = [] #调用DLL的参数
 $refArgs = [] #有传'可修改指针'的类型列表 与useArgs对应下标
 $showArgTxtArray = []
 for $arg in $field.args
-    $sType = func_switchArgType $arg.type $arg.rtype
-    $findIndex = -1
-    $curIndex = 0
-    for $tempArg in $showFunc.args
-        if $tempArg.name == $arg.name
-            $findIndex = $curIndex
-            break
+    if $arg.rtype != 5 && $arg.rtype != 4
+        $sType = func_switchArgType $arg.type $arg.rtype
+        if $sType | string.contains "|"
+            $refArgs = $refArgs | array.add ($sType | string.split "|" | array.last)
+        else
+            $refArgs = $refArgs | array.add ""
         end
-        $curIndex = $curIndex + 1
+        $arg.type = ($sType | string.split "|" | array.first)
+        $useArgs = $useArgs | array.add $arg
+        if $arg.name != gDefine.ObjName
+            $showArgTxtArray = $showArgTxtArray | array.add ($arg.name + ": " + $arg.type)
+        end
     end
-    if $sType | string.contains "|"
-        $refArgs = $refArgs | array.add ($sType | string.split "|" | array.last)
-    else
-        $refArgs = $refArgs | array.add ""
-    end
-    $arg.type = ($sType | string.split "|" | array.first)
-    $useArgs = $useArgs | array.add $arg
-    if $findIndex < 0
-        continue
-    end
-    $showArgTxtArray = $showArgTxtArray | array.add ($arg.name + ": " + $arg.type)
 end
 #组装 封装调用的参数'showArgTxt'
 $showArgTxt = $showArgTxtArray | array.join ", "
@@ -185,7 +262,7 @@ for $uArg in $useArgs
         $names = $names | array.add ("byref(_" + $uArg.name + ")")
         continue
     end
-    if $uArg.name | string.starts_with "_"
+    if $uArg.name == gDefine.ObjName
         $names = $names | array.add ("self." + $uArg.name)
     else
         $names = $names | array.add $uArg.name
@@ -206,7 +283,9 @@ end
 #有'可修改指针'的返回值类型列表
 $retList = $tempArg | array.map "type"
 $retText = ""
-$retList = $retList | array.insert_at 0 (((func_switchArgType $showFunc.rtype 0) | string.split "|") | array.first)
+if $showFunc.rtype != "void"
+    $retList = $retList | array.insert_at 0 (((func_switchArgType ($showFunc.rtype + "*") 0) | string.split "|") | array.first)
+end
 if ($retList | array.size) > 1
     $retText = "(" + ($retList | array.join ", ") + ")"
 else
@@ -241,15 +320,6 @@ for $name in $names
         _{{$useArg.name}} = {{$refName}}({{$useArg.name}})
     {{~ end ~}}
 {{~ end ~}}
-{{~ if $showFunc.rtype == "std::wstring" ~}}
-        _size = self.dll.{{$field.name}}({{$names | array.join ", "}})
-        if _size > 0:
-            self.{{gDefine.PStrSize}} = _size
-            self.{{gDefine.PStr}} = create_unicode_buffer(int(_size / sizeof(c_wchar)))
-            self.dll.{{$field.name}}({{$names | array.join ", "}})
-
-        return self.{{gDefine.PStr}}.value
-{{~ else ~}}
 {{~ if ($tempArg | array.size) > 0 ~}}
 {{~
 $tArgStr = ""
@@ -259,12 +329,20 @@ for $tArg in $tempArg
 end
 $tArgStr = $tArgArray | array.join ", "
 ~}}
+    {{~ if $showFunc.rtype == "void" ~}}
+        self.dll.{{$field.name}}({{$names | array.join ", "}})
+        return {{$tArgStr}}
+    {{~ else ~}}
         _result = self.dll.{{$field.name}}({{$names | array.join ", "}})
         return _result, {{$tArgStr}}
+    {{~ end ~}}
 {{~ else ~}}
+    {{~ if $showFunc.rtype == "void" ~}}
+        self.dll.{{$field.name}}({{$names | array.join ", "}})
+    {{~ else ~}}
         return self.dll.{{$field.name}}({{$names | array.join ", "}})
+    {{~ end ~}}
 {{~ end ~}}
-{{~ end -}}
 
 {{~ end ~}}
 {{~ end ~}}
